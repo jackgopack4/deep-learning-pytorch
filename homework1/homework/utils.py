@@ -1,5 +1,5 @@
 from PIL import Image
-
+import csv
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
@@ -8,26 +8,28 @@ LABEL_NAMES = ['background', 'kart', 'pickup', 'nitro', 'bomb', 'projectile']
 
 class SuperTuxDataset(Dataset):
     def __init__(self, dataset_path):
-        """
-        Your code here
-        Hint: Use the python csv library to parse labels.csv
-
-        WARNING: Do not perform data normalization here. 
-        """
-        raise NotImplementedError('SuperTuxDataset.__init__')
+      fileToOpen = dataset_path+"/labels.csv"
+      self.dataset_path=dataset_path
+      with open(fileToOpen, newline='') as csvFile:
+        labelsReader = csv.reader(csvFile)
+        self.labelsList=list(labelsReader)
+        self.labelsList.pop(0)
+      #raise NotImplementedError('SuperTuxDataset.__init__')
 
     def __len__(self):
-        """
-        Your code here
-        """
-        raise NotImplementedError('SuperTuxDataset.__len__')
+      print(len(self.labelsList))
+      return len(self.labelsList)
+      #raise NotImplementedError('SuperTuxDataset.__len__')
 
     def __getitem__(self, idx):
-        """
-        Your code here
-        return a tuple: img, label
-        """
-        raise NotImplementedError('SuperTuxDataset.__getitem__')
+      imageFileName=self.labelsList[idx][0]
+      imageLabelName=self.labelsList[idx][1]
+      I = Image.open(self.dataset_path+"/"+imageFileName)
+      image_to_tensor = transforms.ToTensor()
+      image_tensor = image_to_tensor(I)
+      #print(image_tensor.shape)
+      return (image_tensor,LABEL_NAMES.index(imageLabelName))
+      #raise NotImplementedError('SuperTuxDataset.__getitem__')
 
 
 def load_data(dataset_path, num_workers=0, batch_size=128):
