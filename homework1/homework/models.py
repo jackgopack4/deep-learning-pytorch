@@ -19,23 +19,31 @@ class ClassificationLoss(torch.nn.Module):
         raise NotImplementedError('ClassificationLoss.forward')
 
 
-class LinearClassifier(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
 
+class LinearClassifier(torch.nn.Module):
+    def __init__(self, batch=128):
+        super().__init__()
+        self.flatten = torch.nn.Flatten()
+        self.linear = torch.nn.Linear(in_features=3*64*64,out_features=6)
         """
         Your code here
         """
-        raise NotImplementedError('LinearClassifier.__init__')
+        #raise NotImplementedError('LinearClassifier.__init__')
 
     def forward(self, x):
+        x=self.flatten(x)
+        logit=self.linear(x)
+        #res=1/(1+(-logit).exp())
+        res = torch.nn.Softmax(dim=-1)(logit)
+        #print(res.shape)
+        return res
         """
         Your code here
 
         @x: torch.Tensor((B,3,64,64))
         @return: torch.Tensor((B,6))
         """
-        raise NotImplementedError('LinearClassifier.forward')
+        #raise NotImplementedError('LinearClassifier.forward')
 
 
 class MLPClassifier(torch.nn.Module):
