@@ -8,8 +8,11 @@ def train(args):
   model = model_factory[args.model]()
   trainloader = load_data('data/train')
   loss = ClassificationLoss()
-  optimizer = torch.optim.SGD(model.parameters(),lr=.01)
-  for epoch in range(20):
+  optimizer = torch.optim.SGD(model.parameters(),lr=.0025)
+  break_point=.1
+  if(args.model=='linear'): break_point=.2
+  #print(args.model)
+  for epoch in range(25):
     #testloader = load_data('data/valid')
     #classifier=locals()[model]()
     for i, data in enumerate(trainloader, 0):
@@ -22,7 +25,8 @@ def train(args):
       l.backward()
       optimizer.step()
     print(l.item())
-    if(l.item()<.5): 
+    
+    if(l.item()<break_point): 
       break
     """
     Your code here
