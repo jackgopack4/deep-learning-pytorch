@@ -17,7 +17,7 @@ class SuperTuxDataset(Dataset):
       #raise NotImplementedError('SuperTuxDataset.__init__')
 
     def __len__(self):
-      print(len(self.labelsList))
+      #print(len(self.labelsList))
       return len(self.labelsList)
       #raise NotImplementedError('SuperTuxDataset.__len__')
 

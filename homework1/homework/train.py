@@ -1,17 +1,37 @@
 from .models import ClassificationLoss, model_factory, save_model
 from .utils import accuracy, load_data
-
+import torch
+# adapted heavily from PyTorch "Training a Classifier" tutorial
+# https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
 
 def train(args):
-    model = model_factory[args.model]()
-
+  model = model_factory[args.model]()
+  trainloader = load_data('data/train')
+  loss = ClassificationLoss()
+  optimizer = torch.optim.SGD(model.parameters(),lr=.01)
+  for epoch in range(20):
+    #testloader = load_data('data/valid')
+    #classifier=locals()[model]()
+    for i, data in enumerate(trainloader, 0):
+      inputs, labels = data
+      optimizer.zero_grad()
+      #print(len(inputs))
+      #print(len(labels))
+      outputs=model(inputs)
+      l = loss(outputs,labels)
+      l.backward()
+      optimizer.step()
+    print(l.item())
+    if(l.item()<.5): 
+      break
     """
     Your code here
 
     """
-    raise NotImplementedError('train')
+    #raise NotImplementedError('train')
 
-    save_model(model)
+  save_model(model)
+
 
 
 if __name__ == '__main__':

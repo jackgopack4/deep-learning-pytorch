@@ -26,7 +26,9 @@ class LinearClassifier(torch.nn.Module):
     def __init__(self, batch=128):
         super().__init__()
         self.flatten = torch.nn.Flatten()
-        self.linear = torch.nn.Linear(in_features=3*64*64,out_features=6)
+        self.linear = torch.nn.Linear(3*64*64,1024)
+        self.linear2 = torch.nn.Linear(1024,64)
+        self.linear3 = torch.nn.Linear(64,6)
         """
         Your code here
         """
@@ -34,11 +36,14 @@ class LinearClassifier(torch.nn.Module):
 
     def forward(self, x):
         x=self.flatten(x)
-        logit=self.linear(x)
+        #print('flattened data length:'+str(len(x)))
+        x=self.linear(x)
+        x=self.linear2(x)
+        x=self.linear3(x)
         #res=1/(1+(-logit).exp())
-        res = torch.nn.Softmax(dim=-1)(logit)
-        #print(res.shape)
-        return res
+        #x = torch.nn.Softmax(dim=-1)(x)
+        #print(x.shape)
+        return x
         """
         Your code here
 
