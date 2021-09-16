@@ -7,18 +7,10 @@ class ClassificationLoss(torch.nn.Module):
       loss = torch.nn.CrossEntropyLoss()
       return loss(input,target)  
       """
-      Your code here
-
-      Compute mean(-log(softmax(input)_label))
-
       @input:  torch.Tensor((B,C))
       @target: torch.Tensor((B,), dtype=torch.int64)
-
       @return:  torch.Tensor((,))
-
-      Hint: Don't be too fancy, this is a one-liner
       """
-      #raise NotImplementedError('ClassificationLoss.forward')
 
 
 
@@ -26,31 +18,18 @@ class LinearClassifier(torch.nn.Module):
     def __init__(self, batch=128):
         super().__init__()
         self.flatten = torch.nn.Flatten()
-        self.linear = torch.nn.Linear(3*64*64,1024)
-        self.linear2 = torch.nn.Linear(1024,64)
-        self.linear3 = torch.nn.Linear(64,6)
-        """
-        Your code here
-        """
-        #raise NotImplementedError('LinearClassifier.__init__')
+        self.linear = torch.nn.Linear(3*64*64,64)
+        self.linear2 = torch.nn.Linear(64,6)
 
     def forward(self, x):
         x=self.flatten(x)
-        #print('flattened data length:'+str(len(x)))
         x=self.linear(x)
         x=self.linear2(x)
-        x=self.linear3(x)
-        #res=1/(1+(-logit).exp())
-        #x = torch.nn.Softmax(dim=-1)(x)
-        #print(x.shape)
         return x
         """
-        Your code here
-
         @x: torch.Tensor((B,3,64,64))
         @return: torch.Tensor((B,6))
         """
-        #raise NotImplementedError('LinearClassifier.forward')
 
 
 class MLPClassifier(torch.nn.Module):
@@ -60,10 +39,6 @@ class MLPClassifier(torch.nn.Module):
         self.linear2 = torch.nn.Linear(256, 6)
         self.relu=torch.nn.ReLU()
         self.flatten=torch.nn.Flatten()
-        """
-        Your code here
-        """
-        #raise NotImplementedError('MLPClassifier.__init__')
 
     def forward(self, x):
         x=self.flatten(x)
@@ -71,12 +46,9 @@ class MLPClassifier(torch.nn.Module):
         x = self.linear2(x)
         return x
         """
-        Your code here
-
         @x: torch.Tensor((B,3,64,64))
         @return: torch.Tensor((B,6))
         """
-        #raise NotImplementedError('MLPClassifier.forward')
 
 
 model_factory = {
