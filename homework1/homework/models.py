@@ -35,16 +35,17 @@ class LinearClassifier(torch.nn.Module):
 class MLPClassifier(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.linear = torch.nn.Linear(3*64*64, 256) 
-        self.linear2 = torch.nn.Linear(256, 6)
-        self.relu=torch.nn.ReLU()
-        self.flatten=torch.nn.Flatten()
+        self.layers = torch.nn.Sequential(
+          torch.nn.Flatten(),
+          torch.nn.Linear(3*64*64, 192),
+          torch.nn.ReLU(),
+          torch.nn.Linear(192,24),
+          torch.nn.ReLU(),
+          torch.nn.Linear(24,6)
+        )
 
     def forward(self, x):
-        x=self.flatten(x)
-        x = self.relu(self.linear(x))
-        x = self.linear2(x)
-        return x
+        return self.layers(x)
         """
         @x: torch.Tensor((B,3,64,64))
         @return: torch.Tensor((B,6))
