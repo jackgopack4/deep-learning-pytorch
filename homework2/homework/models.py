@@ -1,5 +1,8 @@
 import torch
 
+class ClassificationLoss(torch.nn.Module):
+  def forward(self, input, target):
+    return torch.nn.functional.cross_entropy(input, target)
 
 class CNNClassifier(torch.nn.Module):
   class Block(torch.nn.Module):
@@ -33,7 +36,7 @@ class CNNClassifier(torch.nn.Module):
     # Global average pooling
     z = z.mean(dim=[2,3])
     # Classify
-    return self.classifier(z)[:,0]
+    return self.classifier(z)#[:,0]
     #raise NotImplementedError('CNNClassifier.forward')
 
 

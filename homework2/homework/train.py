@@ -1,4 +1,4 @@
-from .models import CNNClassifier, save_model
+from .models import CNNClassifier, save_model, ClassificationLoss
 from .utils import accuracy, load_data
 import torch
 import torch.utils.tensorboard as tb
@@ -22,7 +22,7 @@ def train(args):
 
     train_data = load_data('data/train')
     valid_data = load_data('data/valid')
-
+    global_step=0
     for epoch in range(args.num_epoch):
         model.train()
         loss_vals, acc_vals, vacc_vals = [], [], []
@@ -39,22 +39,27 @@ def train(args):
             optimizer.zero_grad()
             loss_val.backward()
             optimizer.step()
+            train_logger.add_scalar('loss',
+                                    loss_val,
+                                    global_step=global_step)
+            global_step+=1
 
         avg_loss = sum(loss_vals) / len(loss_vals)
         avg_acc = sum(acc_vals) / len(acc_vals)
+        train_logger.add_scalar('accuracy',
+                                avg_acc,
+                                global_step=global_step)
 
         model.eval()
         for img, label in valid_data:
             img, label = img.to(device), label.to(device)
             vacc_vals.append(accuracy(model(img), label).detach().cpu().numpy())
         avg_vacc = sum(vacc_vals) / len(vacc_vals)
+        valid_logger.add_scalar('accuracy',
+                                avg_vacc,
+                                global_step=global_step)
 
         print('epoch %-3d \t loss = %0.3f \t acc = %0.3f \t val acc = %0.3f' % (epoch, avg_loss, avg_acc, avg_vacc))
-    save_model(model)
-    """
-    Your code here, modify your HW1 code
-    
-    """
 
     save_model(model)
 
