@@ -10,10 +10,17 @@ class CNNClassifier(torch.nn.Module):
         Hint: Base this on yours or HW2 master solution if you'd like.
         Hint: Overall model can be similar to HW2, but you likely need some architecture changes (e.g. ResNets)
         """
-        L = []
-        c = n_input_channels
+        L = [torch.nn.Conv2d(n_input_channels, 32, kernel_size=7, padding=3, stride=2, bias=False),
+             torch.nn.BatchNorm2d(32),
+             torch.nn.ReLU(),
+             torch.nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+            ]
+        c = 32
         for l in layers:
-            L.append(torch.nn.Conv2d(c, l, kernel_size, stride=2, padding=kernel_size//2))
+            L.append(torch.nn.Conv2d(c, l, kernel_size, stride=2, padding=kernel_size//2, bias=False))
+            L.append(torch.nn.BatchNorm2d(l))
+            L.append(torch.nn.ReLU())
+            L.append(torch.nn.Conv2d(l, l, kernel_size, padding=kernel_size//2, bias=False))
             L.append(torch.nn.BatchNorm2d(l))
             L.append(torch.nn.ReLU())
             c = l
