@@ -1,5 +1,5 @@
 from .models import CNNClassifier, save_model
-from .utils import ConfusionMatrix, load_data, LABEL_NAMES
+from .utils import ConfusionMatrix, load_data, LABEL_NAMES, accuracy
 import torch
 import torchvision
 import torch.utils.tensorboard as tb
@@ -32,6 +32,7 @@ def train(args):
 
     global_step = 0
     for epoch in range(args.num_epoch):
+        print('now training epoch',epoch)
         model.train()
         acc_vals = []
         for img, label in train_data:
@@ -80,6 +81,6 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--num_epoch', type=int, default=50)
     parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
     parser.add_argument('-c', '--continue_training', action='store_true')
-    
+
     args = parser.parse_args()
     train(args)
