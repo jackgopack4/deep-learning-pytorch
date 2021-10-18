@@ -14,6 +14,7 @@ class CNNClassifier(torch.nn.Module):
         c = n_input_channels
         for l in layers:
             L.append(torch.nn.Conv2d(c, l, kernel_size, stride=2, padding=kernel_size//2))
+            L.append(torch.nn.BatchNorm2d(l))
             L.append(torch.nn.ReLU())
             c = l
         self.network = torch.nn.Sequential(*L)
