@@ -3,6 +3,19 @@ import torch.nn.functional as F
 
 
 class CNNClassifier(torch.nn.Module):
+    class Block(torch.nn.Module):
+        def __init__(self, n_input, n_output, kernel_size, stride=1):
+            super().__init__()
+            self.net = torch.nn.Sequential(
+                torch.nn.Conv2d(n_input, n_output, kernel_size, stride=stride, padding=kernel_size//2, bias=False),
+                torch.nn.BatchNorm2d(n_output),
+                torch.nn.ReLU(),
+                torch.nn.Conv2d(n_output, n_output, kernel_size, padding=kernel_size//2,bias=False),
+                torch.nn.BatchNorm2d(n_output),
+                torch.nn.ReLU()
+            )
+        def forward(self, x):
+            return self.net(x)
     def __init__(self, layers=[16, 32, 64, 128], n_input_channels=3, n_output_channels=6, kernel_size=5):
         super().__init__()
         """
@@ -17,12 +30,7 @@ class CNNClassifier(torch.nn.Module):
             ]
         c = 32
         for l in layers:
-            L.append(torch.nn.Conv2d(c, l, kernel_size, stride=2, padding=kernel_size//2, bias=False))
-            L.append(torch.nn.BatchNorm2d(l))
-            L.append(torch.nn.ReLU())
-            L.append(torch.nn.Conv2d(l, l, kernel_size, padding=kernel_size//2, bias=False))
-            L.append(torch.nn.BatchNorm2d(l))
-            L.append(torch.nn.ReLU())
+            L.append(self.Block(c, l, kernel_size, stride=2))
             c = l
         self.network = torch.nn.Sequential(*L)
         self.classifier = torch.nn.Linear(c, n_output_channels)
