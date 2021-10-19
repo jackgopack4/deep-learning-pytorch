@@ -20,11 +20,13 @@ def train(args):
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-    model = CNNClassifier().to(device)
+    model = CNNClassifier()
+    model = model.to(device)
     if args.continue_training:
         model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), 'cnn.th')))
 
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [50,75], gamma=0.1)
     loss = torch.nn.CrossEntropyLoss()
 
     train_data = load_data('data/train')
@@ -51,6 +53,7 @@ def train(args):
             optimizer.step()
             global_step += 1
         avg_acc = sum(acc_vals) / len(acc_vals)
+        scheduler.step(avg_acc)
 
         if train_logger:
             train_logger.add_scalar('accuracy', avg_acc, global_step)
