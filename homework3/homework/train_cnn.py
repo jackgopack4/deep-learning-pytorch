@@ -32,10 +32,17 @@ def train(args):
     train_data = load_data('data/train')
     valid_data = load_data('data/valid')
 
+    transform = torchvision.transforms.Compose([
+      torchvision.transforms.ColorJitter(),
+      torchvision.transforms.RandomHorizontalFlip,
+      torchvision.transforms.RandomResizedCrop(64)
+    ])
+    
     global_step = 0
     for epoch in range(args.num_epoch):
         model.train()
         acc_vals = []
+        transform(train_data[0][:])
         for img, label in train_data:
             img, label = img.to(device), label.to(device)
 
