@@ -50,7 +50,9 @@ class CNNClassifier(torch.nn.Module):
         @return: torch.Tensor((B,6))
         Hint: Apply input normalization inside the network, to make sure it is applied in the grader
         """
-        return self.classifier(self.network(x).mean(dim=[2, 3]))
+        normalize=torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+				std=[0.229, 0.224, 0.225])
+        return self.classifier(self.network(normalize(x)).mean(dim=[2, 3]))
 
 class FCN(torch.nn.Module):
     def __init__(self):

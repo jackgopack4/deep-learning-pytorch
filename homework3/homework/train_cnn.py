@@ -26,7 +26,7 @@ def train(args):
         model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), 'cnn.th')))
 
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=25, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',patience=5)
     loss = torch.nn.CrossEntropyLoss()
 
     train_data = load_data('data/train')
@@ -52,7 +52,6 @@ def train(args):
             optimizer.step()
             global_step += 1
         avg_acc = sum(acc_vals) / len(acc_vals)
-        scheduler.step()
         print( 'epoch = ', epoch, 'optimizer_lr', optimizer.param_groups[0]['lr'])
         if train_logger:
             train_logger.add_scalar('accuracy', avg_acc, global_step)
@@ -63,6 +62,7 @@ def train(args):
             img, label = img.to(device), label.to(device)
             acc_vals.append(accuracy(model(img), label).detach().cpu().numpy())
         avg_vacc = sum(acc_vals) / len(acc_vals)
+        scheduler.step(avg_vacc)
 
         if valid_logger:
             valid_logger.add_scalar('accuracy', avg_vacc, global_step)
