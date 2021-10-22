@@ -10,7 +10,7 @@ class CNNClassifier(torch.nn.Module):
                 torch.nn.Conv2d(n_input, n_output, kernel_size, stride=stride, padding=kernel_size//2, bias=False),
                 torch.nn.BatchNorm2d(n_output),
                 torch.nn.ReLU(),
-                torch.nn.Dropout(),
+                torch.nn.Dropout(p=0.2),
                 torch.nn.Conv2d(n_output, n_output, kernel_size, padding=kernel_size//2,bias=False),
                 torch.nn.BatchNorm2d(n_output),
                 torch.nn.ReLU()

@@ -26,27 +26,27 @@ def train(args):
         model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), 'cnn.th')))
 
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',patience=5)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',patience=10,cooldown=5)
     loss = torch.nn.CrossEntropyLoss()
+
+    transform = torchvision.transforms.Compose([
+      torchvision.transforms.ColorJitter(brightness=1,contrast=1,saturation=1,hue=.25),
+      torchvision.transforms.RandomHorizontalFlip(),
+      #torchvision.transforms.RandomResizedCrop(64)
+    ])
 
     train_data = load_data('data/train')
     valid_data = load_data('data/valid')
 
-    transform = torchvision.transforms.Compose([
-      torchvision.transforms.ColorJitter(),
-      torchvision.transforms.RandomHorizontalFlip,
-      torchvision.transforms.RandomResizedCrop(64)
-    ])
-    
+    max_vacc = 0.0
     global_step = 0
     for epoch in range(args.num_epoch):
         model.train()
         acc_vals = []
-        transform(train_data[0][:])
         for img, label in train_data:
             img, label = img.to(device), label.to(device)
-
-            logit = model(img)
+            transformed_img=transform(img)
+            logit = model(transformed_img)
             loss_val = loss(logit, label)
             acc_val = accuracy(logit, label)
 
@@ -69,6 +69,7 @@ def train(args):
             img, label = img.to(device), label.to(device)
             acc_vals.append(accuracy(model(img), label).detach().cpu().numpy())
         avg_vacc = sum(acc_vals) / len(acc_vals)
+        
         scheduler.step(avg_vacc)
 
         if valid_logger:
@@ -76,8 +77,11 @@ def train(args):
 
         if valid_logger is None or train_logger is None:
             print('epoch %-3d \t acc = %0.3f \t val acc = %0.3f' % (epoch, avg_acc, avg_vacc))
-        save_model(model)
-    save_model(model)
+        if(avg_vacc > max_vacc): 
+          max_vacc = avg_vacc
+          save_model(model)
+          print('saving model with vacc',max_vacc)
+    #save_model(model)
 
 
 if __name__ == '__main__':
