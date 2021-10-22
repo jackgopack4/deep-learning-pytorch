@@ -24,19 +24,19 @@ class CNNClassifier(torch.nn.Module):
             if self.downsample is not None:
                 identity = self.downsample(x)
             return self.net(x) + identity
-    def __init__(self, layers=[16, 32, 64, 128], n_input_channels=3, n_output_channels=6, kernel_size=5):
+    def __init__(self, layers=[32, 64, 128, 256], n_input_channels=3, n_output_channels=6, kernel_size=5):
         super().__init__()
         """
         Your code here
         Hint: Base this on yours or HW2 master solution if you'd like.
         Hint: Overall model can be similar to HW2, but you likely need some architecture changes (e.g. ResNets)
         """
-        L = [torch.nn.Conv2d(n_input_channels, 32, kernel_size=7, padding=3, stride=2, bias=False),
-             torch.nn.BatchNorm2d(32),
+        L = [torch.nn.Conv2d(n_input_channels, layers[0], kernel_size=7, padding=3, stride=2, bias=False),
+             torch.nn.BatchNorm2d(layers[0]),
              torch.nn.ReLU(),
              torch.nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
             ]
-        c = 32
+        c = layers[0]
         for l in layers:
             L.append(self.Block(c, l, kernel_size, stride=2))
             c = l
