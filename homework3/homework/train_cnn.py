@@ -16,8 +16,6 @@ def train(args):
     """
     Your code here, modify your HW1 / HW2 code
     """
-    import torch
-
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     model = CNNClassifier()

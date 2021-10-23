@@ -22,6 +22,37 @@ def train(args):
     Hint: If you found a good data augmentation parameters for the CNN, use them here too. Use dense_transforms
     Hint: Use the log function below to debug and visualize your model
     """
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model = FCN()
+    model = model.to(device)
+    if args.continue_training:
+        model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), 'fcn.th')))
+    
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',patience=10,cooldown=5)
+    loss = torch.nn.CrossEntropyLoss()
+
+    transform = torchvision.transforms.Compose([
+      torchvision.transforms.ColorJitter(brightness=1,contrast=1,saturation=1,hue=.25),
+      torchvision.transforms.RandomHorizontalFlip(),
+      #torchvision.transforms.RandomResizedCrop(64)
+    ])
+
+    train_data = load_dense_data('dense_data/train')
+    valid_data = load_dense_data('dense_data/valid')
+
+    max_vacc = 0.0
+    global_step = 0
+    for epoch in range(args.num_epoch):
+        model.train()
+        # do training
+        acc_vals = []
+        for img, labels in train_data:
+            
+
+        model.eval()
+        # do evaluation
+
     save_model(model)
 
 
@@ -47,6 +78,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--log_dir')
     # Put custom arguments here
+    parser.add_argument('-n', '--num_epoch', type=int, default=50)
+    parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
+    parser.add_argument('-c', '--continue_training', action='store_true')
 
     args = parser.parse_args()
     train(args)
