@@ -78,7 +78,7 @@ class FCN(torch.nn.Module):
             if self.downsample is not None:
                 identity = self.downsample(x)
             return self.net(x) + identity
-    def __init__(self, layers=[64, 128], n_input_channels=3, n_output_channels=5, kernel_size=7):
+    def __init__(self, layers=[32, 128], n_input_channels=3, n_output_channels=5, kernel_size=7):
         super().__init__()
         """
         Your code here.
@@ -90,23 +90,25 @@ class FCN(torch.nn.Module):
         """
         self.Levels = []
         self.Upsamples = []        
-        L = [torch.nn.Conv2d(n_input_channels, layers[0], kernel_size=7, padding=3, stride=2, bias=False),
+        L = [torch.nn.Conv2d(n_input_channels, layers[0], kernel_size=7, stride=2, padding=3, bias=False),
              torch.nn.BatchNorm2d(layers[0]),
              torch.nn.ReLU(),
-             torch.nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+             torch.nn.MaxPool2d(kernel_size=3, stride=2, padding=1,dilation=1)
             ]
         c = layers[0]
-        L.append(self.Block(c,c,kernel_size=3))
-        self.Levels.append(torch.nn.Sequential(*L))
-        self.Upsamples.append(torch.nn.Upsample(scale_factor=c//16))
+        #L.append(self.Block(c,c,kernel_size=3))
+        self.Levels.append(L)
+        self.Upsamples.append(torch.nn.Upsample(scale_factor=c//8))
+        torch.nn.ConvTranspose2d(180, 128, kernel_size=3, stride=2, output_padding=0, bias=True)
+        torch.nn.ConvTranspose2d(128,32,kernel_size=3,stride=2,output_padding=0,bias=True)
         for l in layers[1:]:
             L = []
             L.append(self.Block(c, l, kernel_size=3, stride=2,residual=True))
-            L.append(self.Block(l, l, kernel_size=3))
+            #L.append(self.Block(l, l, kernel_size=3))
+            self.Levels.append(L)
             c = l
-            self.Levels.append(torch.nn.Sequential(*L))
             self.Upsamples.append(torch.nn.Upsample(scale_factor=c//16))
-        self.conv1k = torch.nn.Conv2d(np.sum(layers), n_output_channels, kernel_size=1)
+        self.conv1k = torch.nn.ConvTranspose2d(32, n_output_channels, kernel_size=7)
         self.sigmoid=torch.nn.Sigmoid()
 
     def forward(self, x):
@@ -125,18 +127,25 @@ class FCN(torch.nn.Module):
         # upsample levels array
         u = []
         x = normalize(x)
+        og_size=list(x.size())
+        #print('og size',og_size)
         og_height=x.size(dim=2)
         og_width=x.size(dim=3)
         for i in range(0,len(self.Levels)):
-            block = self.Levels[i]
+            #print('level',i)
+            block = torch.nn.Sequential(*self.Levels[i])
             block = block.to(device)
             x = block(x)
             upsampled = self.Upsamples[i](x)
+            #print(self.Upsamples[i])            
+            #print('upsampled size',upsampled.size())
+
             upsampled = upsampled[:,:,:og_height,:og_width]
             u.append(upsampled)
         combine_skips = torch.cat(u,dim=1)
         output = self.conv1k(combine_skips)
-        output = self.sigmoid(output)
+        #output = self.sigmoid(output)
+        #print('output size',output.size())
         return output
 
 

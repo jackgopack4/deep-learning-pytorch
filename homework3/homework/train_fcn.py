@@ -53,7 +53,9 @@ def train(args):
             labels = labels.type(torch.LongTensor)
             img, labels = img.to(device), labels.to(device)
             transformed_img=transform(img)
-            logit = model(transformed_img).to(device)
+            #print('image size',transformed_img.size())
+            logit = model(transformed_img)
+            #print('model output size',logit.size())
             loss_val = loss(logit, labels)
             c_train.add(logit.argmax(1),labels)
 
@@ -64,7 +66,6 @@ def train(args):
             loss_val.backward()
             optimizer.step()
             global_step += 1
-        print( 'epoch = ', epoch, 'optimizer_lr', optimizer.param_groups[0]['lr'])
         train_iou = c_train.iou.detach().cpu().numpy()
         if train_logger:
             train_logger.add_scalar('iou_accuracy', train_iou, global_step)
@@ -78,6 +79,10 @@ def train(args):
             c_valid.add(model(img).argmax(1), labels)
         valid_iou = c_valid.iou.detach().cpu().numpy()
         scheduler.step(valid_iou)
+        print( 'epoch = ', epoch, 'optimizer_lr', optimizer.param_groups[0]['lr'], 't_iou',train_iou,'v_iou',valid_iou)
+        print('global valid accuracy',c_valid.global_accuracy.detach().cpu().numpy())
+        print('class valid accuracy',c_valid.class_accuracy.detach().cpu().numpy())
+        print('average valid accuracy',c_valid.average_accuracy.detach().cpu().numpy())
 
         if valid_logger:
             valid_logger.add_scalar('iou_accuracy', valid_iou, global_step)
