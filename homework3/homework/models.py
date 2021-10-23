@@ -53,6 +53,7 @@ class CNNClassifier(torch.nn.Module):
         return self.classifier(self.network(normalize(x)).mean(dim=[2, 3]))
 
 class FCN(torch.nn.Module):
+  
     class Block(torch.nn.Module):
         def __init__(self, n_input, n_output, kernel_size, stride=1,residual=False):
             super().__init__()
@@ -68,8 +69,9 @@ class FCN(torch.nn.Module):
             self.downsample = None
             # define residual connection
             if (stride != 1 or n_input != n_output) and residual:
-                self.downsample = torch.nn.Sequential(torch.nn.Conv2d(n_input, n_output,kernel_size=1,stride=stride, bias=False),
-                                                      torch.nn.BatchNorm2d(n_output))
+                self.downsample = torch.nn.Sequential(
+                                      torch.nn.Conv2d(n_input, n_output,kernel_size=1,stride=stride, bias=False),
+                                      torch.nn.BatchNorm2d(n_output))
         def forward(self, x):
             identity = x
             # add Residual connection
@@ -97,15 +99,16 @@ class FCN(torch.nn.Module):
         L.append(self.Block(c,c,kernel_size=3))
         L.append(self.Block(c,c,kernel_size=3))
         self.Levels.append(torch.nn.Sequential(*L))
-        self.Upsamples.append(torch.nn.Upsample(scale_factor=c//16, mode='bilinear'))
+        self.Upsamples.append(torch.nn.Upsample(scale_factor=c//16))
         for l in layers[1:]:
             L = []
             L.append(self.Block(c, l, kernel_size=3, stride=2,residual=True))
             L.append(self.Block(l, l, kernel_size=3))
             c = l
             self.Levels.append(torch.nn.Sequential(*L))
-            self.Upsamples.append(torch.nn.Upsample(scale_factor=c//16, mode='bilinear'))
+            self.Upsamples.append(torch.nn.Upsample(scale_factor=c//16))
         self.conv1k = torch.nn.Conv2d(np.sum(layers), n_output_channels, kernel_size=1)
+        self.sigmoid=torch.nn.Sigmoid()
 
     def forward(self, x):
         """
@@ -117,16 +120,23 @@ class FCN(torch.nn.Module):
               if required (use z = z[:, :, :H, :W], where H and W are the height and width of a corresponding strided
               convolution
         """
-        
+        #device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         normalize=torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
 				std=[0.229, 0.224, 0.225])
         # upsample levels array
         u = []
+        x = normalize(x)
+        og_height=x.size(dim=2)
+        og_width=x.size(dim=3)
         for i in range(0,len(self.Levels)):
-            x = self.Levels[i](normalize(x))
-            u.append(self.Upsamples[i](x))
-        combine_skips = torch.cat(u, dim=1)
-        return self.conv1k(combine_skips)
+            x = self.Levels[i](x)
+            upsampled = self.Upsamples[i](x)
+            upsampled = upsampled[:,:,:og_height,:og_width]
+            u.append(upsampled)
+        combine_skips = torch.cat(u,dim=1)
+        output = self.conv1k(combine_skips)
+        output = self.sigmoid(output)
+        return output
 
 
 model_factory = {

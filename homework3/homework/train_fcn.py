@@ -5,6 +5,7 @@ from .models import FCN, save_model
 from .utils import load_dense_data, DENSE_CLASS_DISTRIBUTION, ConfusionMatrix
 from . import dense_transforms
 import torch.utils.tensorboard as tb
+import torchvision
 
 
 def train(args):
@@ -23,12 +24,13 @@ def train(args):
     Hint: Use the log function below to debug and visualize your model
     """
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    
     model = FCN()
     model = model.to(device)
     if args.continue_training:
         model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), 'fcn.th')))
     
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',patience=10,cooldown=5)
     loss = torch.nn.CrossEntropyLoss()
 
@@ -41,19 +43,51 @@ def train(args):
     train_data = load_dense_data('dense_data/train')
     valid_data = load_dense_data('dense_data/valid')
 
-    max_vacc = 0.0
+    max_viou = 0.0
     global_step = 0
     for epoch in range(args.num_epoch):
         model.train()
         # do training
-        acc_vals = []
+        c_train = ConfusionMatrix()
         for img, labels in train_data:
-            
+            img, labels = img.to(device), labels.to(device)
+            transformed_img=transform(img)
+            logit = model(transformed_img).to(device)
+            loss_val = loss(logit, labels)
+            c_train.add(logit.argmax(1),labels)
+
+            if train_logger is not None:
+                train_logger.add_scalar('loss', loss_val, global_step)
+
+            optimizer.zero_grad()
+            loss_val.backward()
+            optimizer.step()
+            global_step += 1
+        print( 'epoch = ', epoch, 'optimizer_lr', optimizer.param_groups[0]['lr'])
+        train_iou = c_train.iou().detach().cpu().numpy()
+        if train_logger:
+            train_logger.add_scalar('iou_accuracy', train_iou, global_step)
+
 
         model.eval()
         # do evaluation
+        c_valid = ConfusionMatrix()
+        for img, labels in valid_data:
+            img, labels = img.to(device), labels.to(device)
+            c_valid.add(model(img).argmax(1), labels)
+        valid_iou = c_valid.iou().detach().cpu().numpy()
+        scheduler.step(valid_iou)
 
-    save_model(model)
+        if valid_logger:
+            valid_logger.add_scalar('iou_accuracy', valid_iou, global_step)
+
+        if valid_logger is None or train_logger is None:
+            print('epoch %-3d \t acc = %0.3f \t val acc = %0.3f' % (epoch, train_iou, valid_iou))
+        if(valid_iou > max_viou): 
+          max_viou = valid_iou
+          save_model(model)
+          print('saving model with viou',max_viou)
+    #save_model(model)
 
 
 def log(logger, imgs, lbls, logits, global_step):
