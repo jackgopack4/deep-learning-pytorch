@@ -50,6 +50,7 @@ def train(args):
         # do training
         c_train = ConfusionMatrix()
         for img, labels in train_data:
+            labels = labels.type(torch.LongTensor)
             img, labels = img.to(device), labels.to(device)
             transformed_img=transform(img)
             logit = model(transformed_img).to(device)
@@ -64,7 +65,7 @@ def train(args):
             optimizer.step()
             global_step += 1
         print( 'epoch = ', epoch, 'optimizer_lr', optimizer.param_groups[0]['lr'])
-        train_iou = c_train.iou().detach().cpu().numpy()
+        train_iou = c_train.iou.detach().cpu().numpy()
         if train_logger:
             train_logger.add_scalar('iou_accuracy', train_iou, global_step)
 
@@ -75,7 +76,7 @@ def train(args):
         for img, labels in valid_data:
             img, labels = img.to(device), labels.to(device)
             c_valid.add(model(img).argmax(1), labels)
-        valid_iou = c_valid.iou().detach().cpu().numpy()
+        valid_iou = c_valid.iou.detach().cpu().numpy()
         scheduler.step(valid_iou)
 
         if valid_logger:

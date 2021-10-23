@@ -78,7 +78,7 @@ class FCN(torch.nn.Module):
             if self.downsample is not None:
                 identity = self.downsample(x)
             return self.net(x) + identity
-    def __init__(self, layers=[64, 128, 256], n_input_channels=3, n_output_channels=5, kernel_size=7):
+    def __init__(self, layers=[64, 128], n_input_channels=3, n_output_channels=5, kernel_size=7):
         super().__init__()
         """
         Your code here.
@@ -96,7 +96,6 @@ class FCN(torch.nn.Module):
              torch.nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
             ]
         c = layers[0]
-        L.append(self.Block(c,c,kernel_size=3))
         L.append(self.Block(c,c,kernel_size=3))
         self.Levels.append(torch.nn.Sequential(*L))
         self.Upsamples.append(torch.nn.Upsample(scale_factor=c//16))
@@ -120,7 +119,7 @@ class FCN(torch.nn.Module):
               if required (use z = z[:, :, :H, :W], where H and W are the height and width of a corresponding strided
               convolution
         """
-        #device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         normalize=torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
 				std=[0.229, 0.224, 0.225])
         # upsample levels array
@@ -129,7 +128,9 @@ class FCN(torch.nn.Module):
         og_height=x.size(dim=2)
         og_width=x.size(dim=3)
         for i in range(0,len(self.Levels)):
-            x = self.Levels[i](x)
+            block = self.Levels[i]
+            block = block.to(device)
+            x = block(x)
             upsampled = self.Upsamples[i](x)
             upsampled = upsampled[:,:,:og_height,:og_width]
             u.append(upsampled)
