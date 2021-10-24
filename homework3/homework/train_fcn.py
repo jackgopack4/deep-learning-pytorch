@@ -31,8 +31,8 @@ def train(args):
         model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), 'fcn.th')))
     
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',patience=10,cooldown=5)
-    loss = torch.nn.CrossEntropyLoss()
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',patience=30,cooldown=5)
+    loss = torch.nn.CrossEntropyLoss(weights=torch.ToTensor([0.0189812192,0.3414003808,0.02297272051,2.2411988011,2.4321836661].to(device)))
 
     transform = torchvision.transforms.Compose([
       torchvision.transforms.ColorJitter(brightness=1,contrast=1,saturation=1,hue=.25),

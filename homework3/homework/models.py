@@ -132,9 +132,12 @@ class FCN(torch.nn.Module):
         x = normalize(x)
         og_size=list(x.size())
         print('og size',og_size)
-        
+        og_height=x.size(dim=2)
+        og_width=x.size(dim=3)
         block = self.Levels[0]
         x1 = block(x)
+        x1_height=x1.size(dim=2)
+        x1_width=x1.size(dim=3)
         print('size after first conv',x1.size(),'for og size',og_size)
         block = self.Levels[1]
         x2 = block(x1)
@@ -146,13 +149,13 @@ class FCN(torch.nn.Module):
         x3_u = self.Upconvs[0](x3)
         print('size after first deconv',x3_u.size(),'for og size',og_size)
 
-        x2_u = self.Upconvs[1](x3_u)
+        x2_u = self.Upconvs[1](x3_u)[:][:][:x1_height][:x1_width]
         print('size after second deconv',x2_u.size(),'for og size',og_size)
         x1_u = torch.cat([x1,x2_u],dim=1)
         print('size after torch.cat',x1_u.size())
         x1_u = self.Upconvs[1](x1_u)
         print('size after third deconv',x1_u.size(),'for og size',og_size)
-        x1_u = self.Upconvs[2](x1_u)
+        x1_u = self.Upconvs[2](x1_u)[:][:][:og_height][:og_width]
         x = torch.cat([x,x1_u],dim=1)
         print('size after torch.cat',x.size())
         return self.conv1k(x)
