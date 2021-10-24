@@ -78,7 +78,7 @@ class FCN(torch.nn.Module):
             if self.downsample is not None:
                 identity = self.downsample(x)
             return self.net(x) + identity
-    def __init__(self, layers=[32, 128], n_input_channels=3, n_output_channels=5, kernel_size=7):
+    def __init__(self, layers=[32, 64, 128], n_input_channels=3, n_output_channels=5, kernel_size=7):
         super().__init__()
         """
         Your code here.
@@ -88,28 +88,31 @@ class FCN(torch.nn.Module):
         Hint: Use residual connections
         Hint: Always pad by kernel_size / 2, use an odd kernel_size
         """
-        self.Levels = []
-        self.Upsamples = []        
+        self.Levels = torch.nn.ModuleList()
+        self.Upconvs = torch.nn.ModuleList()
         L = [torch.nn.Conv2d(n_input_channels, layers[0], kernel_size=7, stride=2, padding=3, bias=False),
              torch.nn.BatchNorm2d(layers[0]),
              torch.nn.ReLU(),
              torch.nn.MaxPool2d(kernel_size=3, stride=2, padding=1,dilation=1)
             ]
         c = layers[0]
-        #L.append(self.Block(c,c,kernel_size=3))
-        self.Levels.append(L)
-        self.Upsamples.append(torch.nn.Upsample(scale_factor=c//8))
-        torch.nn.ConvTranspose2d(180, 128, kernel_size=3, stride=2, output_padding=0, bias=True)
-        torch.nn.ConvTranspose2d(128,32,kernel_size=3,stride=2,output_padding=0,bias=True)
+        self.Levels.append(torch.nn.Sequential(*L))
+        #print('added conv layer of ',n_input_channels,'to',layers[0])
+        self.Upconvs.insert(0,torch.nn.Sequential(torch.nn.ConvTranspose2d(layers[0],n_input_channels,kernel_size=7,stride=2,padding=3,output_padding=1,bias=False),
+                                                  torch.nn.BatchNorm2d(n_input_channels),
+                                                  torch.nn.ReLU()))
+        #print('added upconv layer of',layers[0],'to',n_output_channels)
         for l in layers[1:]:
-            L = []
-            L.append(self.Block(c, l, kernel_size=3, stride=2,residual=True))
-            #L.append(self.Block(l, l, kernel_size=3))
-            self.Levels.append(L)
+            self.Levels.append(self.Block(c, l, kernel_size=3, stride=2,residual=True))
+            #print('added conv layer of',c,'to',l)
+            self.Upconvs.insert(0,torch.nn.Sequential(torch.nn.ConvTranspose2d(l,c,kernel_size=3,stride=2,padding=1,output_padding=1,bias=False),
+                                   torch.nn.BatchNorm2d(c),
+                                   torch.nn.ReLU()))
+            #print('added upconv layer of',l,'to',c)
             c = l
-            self.Upsamples.append(torch.nn.Upsample(scale_factor=c//16))
-        self.conv1k = torch.nn.ConvTranspose2d(32, n_output_channels, kernel_size=7)
-        self.sigmoid=torch.nn.Sigmoid()
+
+        self.conv1k = torch.nn.ConvTranspose2d(6, n_output_channels, kernel_size=7,stride=1,padding=3,bias=False)
+        #self.sigmoid=torch.nn.Sigmoid()
 
     def forward(self, x):
         """
@@ -121,32 +124,38 @@ class FCN(torch.nn.Module):
               if required (use z = z[:, :, :H, :W], where H and W are the height and width of a corresponding strided
               convolution
         """
-        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        #device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         normalize=torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
 				std=[0.229, 0.224, 0.225])
         # upsample levels array
         u = []
         x = normalize(x)
         og_size=list(x.size())
-        #print('og size',og_size)
-        og_height=x.size(dim=2)
-        og_width=x.size(dim=3)
-        for i in range(0,len(self.Levels)):
-            #print('level',i)
-            block = torch.nn.Sequential(*self.Levels[i])
-            block = block.to(device)
-            x = block(x)
-            upsampled = self.Upsamples[i](x)
-            #print(self.Upsamples[i])            
-            #print('upsampled size',upsampled.size())
+        print('og size',og_size)
+        
+        block = self.Levels[0]
+        x1 = block(x)
+        print('size after first conv',x1.size(),'for og size',og_size)
+        block = self.Levels[1]
+        x2 = block(x1)
+        print('size after second conv',x2.size(),'for og size',og_size)
+        block = self.Levels[2]
+        x3 = block(x2)
+        print('size after third conv',x3.size(),'for og size',og_size)
 
-            upsampled = upsampled[:,:,:og_height,:og_width]
-            u.append(upsampled)
-        combine_skips = torch.cat(u,dim=1)
-        output = self.conv1k(combine_skips)
-        #output = self.sigmoid(output)
-        #print('output size',output.size())
-        return output
+        x3_u = self.Upconvs[0](x3)
+        print('size after first deconv',x3_u.size(),'for og size',og_size)
+
+        x2_u = self.Upconvs[1](x3_u)
+        print('size after second deconv',x2_u.size(),'for og size',og_size)
+        x1_u = torch.cat([x1,x2_u],dim=1)
+        print('size after torch.cat',x1_u.size())
+        x1_u = self.Upconvs[1](x1_u)
+        print('size after third deconv',x1_u.size(),'for og size',og_size)
+        x1_u = self.Upconvs[2](x1_u)
+        x = torch.cat([x,x1_u],dim=1)
+        print('size after torch.cat',x.size())
+        return self.conv1k(x)
 
 
 model_factory = {
