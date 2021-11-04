@@ -15,49 +15,20 @@ def extract_peak(heatmap, max_pool_ks=7, min_score=-5, max_det=100):
        @min_score: Only return peaks greater than min_score
        @return: List of peaks [(score, cx, cy), ...], where cx, cy are the position of a peak and score is the
                 heatmap value at the peak. Return no more than max_det peaks per image
-    
-    m = torch.nn.MaxPool2d(kernel_size=max_pool_ks,stride=1,padding=max_pool_ks//2,return_indices=True)
-
-    maxpools, indices = m(heatmap[None,None])
-    flattened_indices = torch.flatten(indices)
-    flattened_maxpools = torch.flatten(maxpools)
-    flattened_length = torch.tensor(range(0,len(flattened_indices)))
-    peaks = []
-    width = len(heatmap[0])
-    for i in range(0,len(flattened_indices)):
-        if flattened_indices[i] == i: 
-            if flattened_maxpools[i].item()>min_score:
-                x,y = convert_index_to_coordinates(i,width)
-                peaks.append([flattened_maxpools[i],x,y])
-
-    if len(peaks) > max_det:
-        peaks.sort(key=lambda x: x[0])
-        remove_indices = len(peaks) - max_det
-        for j in range(0,remove_indices):
-            peaks.pop(0)
     """
     m = torch.nn.MaxPool2d(kernel_size=max_pool_ks,stride=1,padding=max_pool_ks//2)
     output = m(heatmap[None,None])
     output = torch.squeeze(output)
-    heatmap = torch.where(heatmap>min_score,heatmap,torch.tensor(0.))
-    print('new heatmap',heatmap)
+    new_heatmap = torch.where(heatmap>min_score,heatmap,torch.tensor(0.))
     comparison = heatmap>=output
-    res = torch.where(comparison,heatmap,torch.tensor(0.))
-    print('res',res)
+    res = torch.where(comparison,new_heatmap,torch.tensor(0.))
     nonzero = torch.nonzero(res,as_tuple=True)
-    print('nonzero',nonzero)
     nums = res[nonzero]
-    print('called nums with tuple')
-    peaks = list(zip(nums,nonzero[0],nonzero[1]))
-    peak_tensor=torch.tensor(peaks)
-
-    if len(peak_tensor) > max_det:
-        print('peak size',len(peak_tensor),'greater than max det',max_det)
+    indices = range(0,len(nums))
+    if len(nums) > max_det:
         values,indices = torch.topk(nums,k=max_det,dim=0,sorted=False)
-        print('called topk')
-        print('indices type',indices.type())
-        peak_tensor = peak_tensor[indices]
-    return peak_tensor
+    peaks = list(zip(nums[indices],nonzero[1][indices],nonzero[0][indices]))
+    return peaks
 
 class Detector(torch.nn.Module):
     def __init__(self):
