@@ -1,6 +1,10 @@
 import torch
 import torch.nn.functional as F
 
+def convert_index_to_coordinates(index,width):
+    y = index//width
+    x = index - y*width
+    return x,y
 
 def extract_peak(heatmap, max_pool_ks=7, min_score=-5, max_det=100):
     """
@@ -12,8 +16,26 @@ def extract_peak(heatmap, max_pool_ks=7, min_score=-5, max_det=100):
        @return: List of peaks [(score, cx, cy), ...], where cx, cy are the position of a peak and score is the
                 heatmap value at the peak. Return no more than max_det peaks per image
     """
-    raise NotImplementedError('extract_peak')
+    m = torch.nn.MaxPool2d(kernel_size=max_pool_ks,stride=1,padding=max_pool_ks//2,return_indices=True)
 
+    maxpools, indices = m(heatmap[None,None])
+    flattened_indices = torch.flatten(indices)
+    flattened_maxpools = torch.flatten(maxpools)
+    flattened_length = torch.tensor(range(0,len(flattened_indices)))
+    peaks = []
+    width = len(heatmap[0])
+    for i in range(0,len(flattened_indices)):
+        if flattened_indices[i] == i and flattened_maxpools[i].item()>min_score:
+            x,y = convert_index_to_coordinates(i,width)
+            peaks.append([flattened_maxpools[i],x,y])
+    peaks.sort(key=lambda x: x[0])
+
+    if len(peaks) > max_det:
+        
+        remove_indices = len(peaks) - max_det
+        for j in range(0,remove_indices):
+            peaks.pop(0)
+    return peaks
 
 class Detector(torch.nn.Module):
     def __init__(self):
