@@ -55,7 +55,7 @@ class Detector(torch.nn.Module):
         def forward(self, x):
             return F.relu(self.c1(x))
 
-    def __init__(self, layers=[16, 32, 64, 128], n_output_channels=1, kernel_size=3, use_skip=True):
+    def __init__(self, layers=[16, 32, 64, 128], n_output_channels=3, kernel_size=3, use_skip=True):
         """
            Your code here.
            Setup your detection network
@@ -87,6 +87,7 @@ class Detector(torch.nn.Module):
            and detect for detection
         """
         z = (x - self.input_mean[None, :, None, None].to(x.device)) / self.input_std[None, :, None, None].to(x.device)
+        
         up_activation = []
         for i in range(self.n_conv):
             # Add all the information required for skip connections
@@ -100,7 +101,7 @@ class Detector(torch.nn.Module):
             # Add the skip connection
             if self.use_skip:
                 z = torch.cat([z, up_activation[i]], dim=1)
-        return torch.sigmoid(self.classifier(z))
+        return self.classifier(z)
         #raise NotImplementedError('Detector.forward')
 
     def detect(self, image):
@@ -116,7 +117,17 @@ class Detector(torch.nn.Module):
                  scalar. Otherwise pytorch might keep a computation graph in the background and your program will run
                  out of memory.
         """
-        raise NotImplementedError('Detector.detect')
+        res = []
+        res = res
+        for i in range(0,3):
+            peaks = extract_peak(image[i],max_det=30)
+            peaks = peaks
+            channel_list = []
+            channel_list = channel_list
+            for p in peaks:
+                channel_list.append([p[0].item(),p[1].item(),p[2].item(),0.,0.])
+            res.append(channel_list)
+        return res
 
 
 def save_model(model):
