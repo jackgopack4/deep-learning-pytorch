@@ -53,7 +53,7 @@ class FocalLoss(torch.nn.Module):
         target = target.contiguous().view(target.size(0), target.size(1), -1)
         target = target.transpose(1,2)
         target = target.contiguous().view(-1, target.size(2)).squeeze()
-        BCE_loss = F.binary_cross_entropy_with_logits(input, target, reduction=self.reduction,pos_weight=torch.tensor([.6,.85,.9]).to(target.device))
+        BCE_loss = F.binary_cross_entropy_with_logits(input, target, reduction=self.reduction,pos_weight=torch.tensor([.69,.95,.85]).to(target.device))
         pt = torch.exp(-BCE_loss) # prevents nans when probability 0
         F_loss = self.alpha * (1-pt)**self.gamma * BCE_loss
         return F_loss.mean()
