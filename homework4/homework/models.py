@@ -1,5 +1,9 @@
 import torch
 import torch.nn.functional as F
+from torch.autograd import Variable
+
+DENSE_CLASS_DISTRIBUTION = [0.02929112, 0.0044619, 0.00411153]
+INV_CLASS_DISTRIBUTION = [0.06807880165, 0.4469182071, 0.4850029912]
 
 def convert_index_to_coordinates(index,width):
     y = index//width
@@ -17,56 +21,43 @@ def extract_peak(heatmap, max_pool_ks=7, min_score=-5, max_det=100):
                 heatmap value at the peak. Return no more than max_det peaks per image
     """
     m = torch.nn.MaxPool2d(kernel_size=max_pool_ks,stride=1,padding=max_pool_ks//2)
-    #print('MaxPool calculated')
     output = m(heatmap[None,None])
-    #print('output created')
     output = output.to(heatmap.device)
     output = torch.squeeze(output)
-    #print('output assigned')
     new_heatmap = torch.where(heatmap>min_score,heatmap,torch.tensor(0.).to(output.device)).to(output.device)
     comparison = heatmap>=output
     comparison.to(output.device)
-    #print('comparison matrix')
     res = torch.where(comparison,new_heatmap,torch.tensor(0.).to(output.device))
     res = res.to(output.device)
-    #print('torch.where ran')
     nonzero = torch.nonzero(res,as_tuple=True)
     nums = res[nonzero]
     indices = range(0,len(nums))
     if len(nums) > max_det:
         values,indices = torch.topk(nums,k=max_det,dim=0,sorted=False)
-        #print('topk ran')
     peaks = list(zip(nums[indices],nonzero[1][indices],nonzero[0][indices]))
-    #print('peaks ran')
     return peaks
 # adapted from Focal Loss Lin et. al paper https://github.com/clcarwin/focal_loss_pytorch/
 class FocalLoss(torch.nn.Module):
-    def __init__(self, gamma=2, alpha=0.25):
-        super(FocalLoss, self).__init__()
-        self.gamma = gamma
+    
+    def __init__(self, alpha=1., 
+                 gamma=0., reduction='none'):
+        torch.nn.Module.__init__(self)
         self.alpha = alpha
-    def forward(self, valid, pred):
-        mod_factor = 1.0
-        alpha_factor = 1.0
-        pred.to(valid.device)
-        inv_valid = 1 - valid
-        inv_pred = 1 - pred
-        loss = torch.nn.BCEWithLogitsLoss()
-        ce_loss = loss(valid, pred)
-        pt = (valid * pred) + (inv_valid * inv_pred)
-
-
-        if self.gamma:
-            mod_factor = torch.pow(mod_factor - pt, self.gamma)
+        self.gamma = gamma
+        self.reduction = reduction
         
-        if self.alpha is not None:
-            inv_alpha = 1 - self.alpha
-            alpha_factor = (valid * self.alpha) + (inv_valid * inv_alpha)
+    def forward(self, input, target):
+        input = input.contiguous().view(input.size(0), input.size(1), -1)
+        input = input.transpose(1,2)
+        input = input.contiguous().view(-1, input.size(2)).squeeze()
+        target = target.contiguous().view(target.size(0), target.size(1), -1)
+        target = target.transpose(1,2)
+        target = target.contiguous().view(-1, target.size(2)).squeeze()
+        BCE_loss = F.binary_cross_entropy_with_logits(input, target, reduction=self.reduction,pos_weight=torch.tensor([0.7,0.9,0.9]).to(target.device))
+        pt = torch.exp(-BCE_loss) # prevents nans when probability 0
+        F_loss = self.alpha * (1-pt)**self.gamma * BCE_loss
+        return F_loss.mean()
         
-        focal_loss = mod_factor * alpha_factor * ce_loss
-        focal_loss = focal_loss.mean().to(valid.device)
-        return focal_loss
-
 class Detector(torch.nn.Module):
     class Block(torch.nn.Module):
         def __init__(self, n_input, n_output, kernel_size=3, stride=2):
@@ -154,17 +145,16 @@ class Detector(torch.nn.Module):
                  scalar. Otherwise pytorch might keep a computation graph in the background and your program will run
                  out of memory.
         """
-        self.image = image
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        model = self.forward(image).to(device)
+        model = model.squeeze(dim=0)
         res = []
         
         for i in range(0,3):
-            peaks = extract_peak(self.image[i],max_det=30)
-            peaks = peaks
+            peaks = extract_peak(model[i],max_det=30)
             channel_list = []
             for p in peaks: 
                 channel_list.append([p[0].item(),p[1].item(),p[2].item(),0.,0.])
-            #print('each item added to channel list for channel',i)
             res.append(channel_list)
         return res
 
