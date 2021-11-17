@@ -1,5 +1,5 @@
 import pystk
-
+import numpy as np
 
 def control(aim_point, current_vel):
     """
@@ -18,21 +18,34 @@ def control(aim_point, current_vel):
     Hint: You may want to use action.drift=True for wide turns (it will turn faster)
     """
     #print(aim_point)
-    accel_val = 0.;
-    action.brake = False
-    action.drift = False
+    accel_val = 1.
+    if current_vel >= 10:
+        accel_val = 0.5
+    elif current_vel >= 15:
+        accel_val = 0.25
+    elif current_vel >= 20:
+        accel_val = 0.
+    
+    '''
     if aim_point[1] > 0 and current_vel < 20:
         accel_val = aim_point[1]
-    elif current_vel > 20:
-        action.brake = True
+    '''
     action.acceleration = accel_val
-
-    steer_val = 0.
+    action.drift = False
+    steer_val = []
+    steer_val.append(aim_point[0] * 2.5)
+    #print('steer value =',steer_val[0])
+    same_sign = abs(aim_point[0]) + abs(steer_val[0]) == abs(aim_point[0] + steer_val[0])
+    if abs(aim_point[0]) > 0.6 and same_sign and abs(aim_point[0] < 0.9):
+        action.drift = True
+    '''
     if aim_point[0] != 0.:
         steer_val = aim_point[0] / 2
         if abs(aim_point[0]) > 0.5:
           action.drift = True
-    action.steer = steer_val
+    '''
+    steer_val = np.clip(steer_val,-1,1)
+    action.steer = steer_val[0]
 
     return action
 
