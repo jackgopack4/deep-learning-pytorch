@@ -78,6 +78,9 @@ class PyTux:
                               data
         :return: Number of steps played
         """
+
+        import io #delete
+
         if self.k is not None and self.k.config.track == track:
             self.k.restart()
             self.k.step()
@@ -100,6 +103,8 @@ class PyTux:
         if verbose:
             import matplotlib.pyplot as plt
             fig, ax = plt.subplots(1, 1)
+
+        frames = [] #delete
 
         for t in range(max_frames):
 
@@ -143,8 +148,27 @@ class PyTux:
                     ax.add_artist(plt.Circle(WH2*(1+aim_point_image), 2, ec='g', fill=False, lw=1.5))
                 plt.pause(1e-3)
 
+                #delete delete
+                with io.BytesIO() as buff:
+                    fig.savefig(buff, format='raw')
+                    buff.seek(0)
+                    data = np.frombuffer(buff.getvalue(), dtype=np.uint8)
+                w, h = fig.canvas.get_width_height()
+                im = data.reshape((int(h), int(w), -1))
+                frames.append(im)
+                #delete delete
+
             self.k.step(action)
             t += 1
+
+        #delete delete
+        if verbose:
+            print('writing test.mp4')
+            import imageio
+            imageio.mimwrite('test.mp4', frames, fps=30, bitrate=1000000)
+        #delete delete
+        print('overall distance =',kart.overall_distance)
+        print('track length =',track.length)
         return t, kart.overall_distance / track.length
 
     def close(self):
