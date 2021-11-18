@@ -17,35 +17,20 @@ def control(aim_point, current_vel):
     Hint: Use action.steer to turn the kart towards the aim_point, clip the steer angle to -1..1
     Hint: You may want to use action.drift=True for wide turns (it will turn faster)
     """
-    #print(aim_point)
-    accel_val = 1.
-    if current_vel >= 10:
-        accel_val = 0.5
-    elif current_vel >= 15:
-        accel_val = 0.25
-    elif current_vel >= 20:
-        accel_val = 0.
-    
-    '''
-    if aim_point[1] > 0 and current_vel < 20:
-        accel_val = aim_point[1]
-    '''
+    # set acceleration
+    accel_val = 3 * np.exp(-current_vel / 15)
+    accel_val = np.clip(accel_val, 0, 1)
     action.acceleration = accel_val
-    action.drift = False
-    steer_val = []
-    steer_val.append(aim_point[0] * 2.5)
-    #print('steer value =',steer_val[0])
-    same_sign = abs(aim_point[0]) + abs(steer_val[0]) == abs(aim_point[0] + steer_val[0])
-    if abs(aim_point[0]) > 0.6 and same_sign and abs(aim_point[0] < 0.9):
-        action.drift = True
-    '''
-    if aim_point[0] != 0.:
-        steer_val = aim_point[0] / 2
-        if abs(aim_point[0]) > 0.5:
-          action.drift = True
-    '''
+    
+    # set and clip steer value
+    steer_val = aim_point[0] * 1.69
     steer_val = np.clip(steer_val,-1,1)
-    action.steer = steer_val[0]
+    action.steer = steer_val
+    
+    # set drift
+    action.drift = False
+    if abs(aim_point[0]) > 0.420 and aim_point[1]>=-0.3 and abs(aim_point[0]) < 0.9: 
+        action.drift = True
 
     return action
 
