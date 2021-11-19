@@ -35,7 +35,7 @@ def train(args):
     global_step = 0
     for epoch in range(args.num_epoch):
         model.train()
-
+        loss_vals = []
         for img, gt_det in train_data:
             img, gt_det = img.to(device), gt_det.to(device)
 
@@ -49,10 +49,11 @@ def train(args):
             #loss_val = (det_loss(det, gt_det)*p_det).mean() / p_det.mean()
             #size_loss_val = (size_w * size_loss(size, gt_size)).mean() / size_w.mean()
             #loss_val = det_loss_val + size_loss_val * args.size_weight
-
+            loss_vals.append(loss_val)
+            
             if train_logger is not None and global_step % 25 == 0:
                 log(train_logger, img, gt_det, det, global_step)
-
+              
             if train_logger is not None:
                 #train_logger.add_scalar('det_loss', det_loss_val, global_step)
                 #train_logger.add_scalar('size_loss', size_loss_val, global_step)
@@ -61,9 +62,8 @@ def train(args):
             loss_val.backward()
             optimizer.step()
             global_step += 1
-
-        print('epoch %-3d' %
-                  (epoch))
+        avg_loss = sum(loss_vals) / len(loss_vals)
+        print('avg loss for epoch',epoch,'=',avg_loss.item())
         save_model(model)
 
 def log(logger, img, label, pred, global_step):

@@ -38,7 +38,7 @@ class Planner(torch.nn.Module):
         def forward(self, x):
             return F.relu(self.c1(x))
     
-    def __init__(self, layers=[16, 32, 64], n_class=1, kernel_size=3, use_skip=True):
+    def __init__(self, layers=[16, 32, 64, 128], n_class=1, kernel_size=3, use_skip=True):
         super().__init__()
 
         """
