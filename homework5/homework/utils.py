@@ -165,10 +165,7 @@ class PyTux:
         if verbose:
             print('writing test.mp4')
             import imageio, os
-            save_path = 'test.mp4'
-            compressed_path = 'test_compressed.mp4'
             imageio.mimwrite('test.mp4', frames, fps=30, bitrate=1000000)
-            os.system(f"ffmpeg -i {save_path} -vcodec libx264 {compressed_path}")
         #delete delete
         print('overall distance =',kart.overall_distance)
         print('track length =',track.length)
