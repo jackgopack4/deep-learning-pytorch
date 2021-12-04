@@ -1,6 +1,8 @@
 import logging
 import numpy as np
 from collections import namedtuple
+import torch
+import torch.nn.functional as F
 
 TRACK_NAME = 'icy_soccer_field'
 MAX_FRAMES = 1000
@@ -155,6 +157,25 @@ class Match:
             return ray.get(f)
         return f
 
+    def extract_peak(heatmap, max_pool_ks=7, min_score=-5, max_det=1):
+        """
+           Your code here.
+           Extract local maxima (peaks) in a 2d heatmap.
+           @heatmap: H x W heatmap containing peaks (similar to your training heatmap)
+           @max_pool_ks: Only return points that are larger than a max_pool_ks x max_pool_ks window around the point
+           @min_score: Only return peaks greater than min_score
+           @return: List of peak locations only [(score, cx, cy), ...], where cx, cy are the position of a peak and score is the
+                    heatmap value at the peak. Return no more than max_det peaks per image
+        """
+        max_cls = F.max_pool2d(heatmap[None, None], kernel_size=max_pool_ks, padding=max_pool_ks // 2, stride=1)[0, 0]
+        possible_det = heatmap - (max_cls > heatmap).float() * 1e5
+        if max_det > possible_det.numel():
+            max_det = possible_det.numel()
+        score, loc = torch.topk(possible_det.view(-1), max_det)
+        return [(int(l) % heatmap.size(1), int(l) // heatmap.size(1))
+                for s, l in zip(score.cpu(), loc.cpu()) if s > min_score]
+
+
     def _check(self, team1, team2, where, n_iter, timeout):
         _, error, t1 = self._g(self._r(team1.info)())
         if error:
@@ -166,6 +187,11 @@ class Match:
 
         logging.debug('timeout {} <? {} {}'.format(timeout, t1, t2))
         return t1 < timeout, t2 < timeout
+
+    @staticmethod
+    def _to_image(x, proj, view):
+        p = proj @ view @ np.array(list(x) + [1])
+        return np.clip(np.array([p[0] / p[-1], -p[1] / p[-1]]), -1, 1)
 
     def run(self, team1, team2, num_player=1, max_frames=MAX_FRAMES, max_score=3, record_fn=None, timeout=1e10,
             initial_ball_location=[0, 0], initial_ball_velocity=[0, 0], verbose=False):
@@ -202,6 +228,7 @@ class Match:
         race.step()
 
         state = self._pystk.WorldState()
+        
         state.update()
         state.set_ball_location((initial_ball_location[0], 1, initial_ball_location[1]),
                                 (initial_ball_velocity[0], 0, initial_ball_velocity[1]))
@@ -214,10 +241,21 @@ class Match:
             team1_state = [to_native(p) for p in state.players[0::2]]
             team2_state = [to_native(p) for p in state.players[1::2]]
             soccer_state = to_native(state.soccer)
+            #print(soccer_state)
             team1_images = team2_images = None
             if self._use_graphics:
                 team1_images = [np.array(race.render_data[i].image) for i in range(0, len(race.render_data), 2)]
                 team2_images = [np.array(race.render_data[i].image) for i in range(1, len(race.render_data), 2)]
+            
+            for render in race.render_data:
+                r = render.instance.copy()
+                r = r >> self._pystk.object_type_shift
+                if 8 in r:
+                    r[r != 8] = 0
+                    print('center of puck =',self.extract_peak(r))
+                else: 
+                    print('puck not in image')
+                #print(8 in (render.instance >> self._pystk.object_type_shift))
 
             # Have each team produce actions (in parallel)
             if t1_can_act:
@@ -304,7 +342,9 @@ if __name__ == '__main__':
             recorder = recorder & utils.StateRecorder(args.record_state)
 
         # Start the match
-        match = Match(use_graphics=team1.agent_type == 'image' or team2.agent_type == 'image')
+        #match = Match(use_graphics=team1.agent_type == 'image' or team2.agent_type == 'image')
+        #REMOVE THIS LINE BEFORE SUBMISSION
+        match = Match(use_graphics=True)
         try:
             result = match.run(team1, team2, args.num_players, args.num_frames, max_score=args.max_score,
                                initial_ball_location=args.ball_location, initial_ball_velocity=args.ball_velocity,
