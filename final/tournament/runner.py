@@ -9,6 +9,36 @@ MAX_FRAMES = 1000
 
 RunnerInfo = namedtuple('RunnerInfo', ['agent_type', 'error', 'total_act_time'])
 
+def extract_peak(heatmap, max_pool_ks=7, min_score=-5, max_det=1):
+    """
+       Your code here.
+       Extract local maxima (peaks) in a 2d heatmap.
+       @heatmap: H x W heatmap containing peaks (similar to your training heatmap)
+       @max_pool_ks: Only return points that are larger than a max_pool_ks x max_pool_ks window around the point
+       @min_score: Only return peaks greater than min_score
+       @return: List of peak locations only [(cx, cy), ...], where cx, cy are the position of a peak and score is the
+                heatmap value at the peak. Return no more than max_det peaks per image
+    """
+    heatmap = heatmap.astype(np.float)
+    heatmap = torch.from_numpy(heatmap)
+    
+    net = torch.nn.MaxPool2d(kernel_size=max_pool_ks, stride=1, padding=max_pool_ks // 2)
+    max_cls = net(heatmap[None, None])[0, 0]
+    possible_det = heatmap - (max_cls > heatmap).float() * 1e5
+    if max_det > possible_det.numel():
+        max_det = possible_det.numel()
+    score, loc = torch.topk(possible_det.view(-1), max_det)
+    res = [(int(l) % heatmap.size(1), int(l) // heatmap.size(1))
+            for s, l in zip(score.cpu(), loc.cpu()) if s > min_score]
+    res = np.array(res)
+    if max_det == 1: res = res.flatten()
+    return res
+
+# attributed to https://stackoverflow.com/a/31735642
+def angle_between(p1, p2):
+    ang1 = np.arctan2(*p1[::-1])
+    ang2 = np.arctan2(*p2[::-1])
+    return np.rad2deg((ang1 - ang2) % (2 * np.pi))
 
 def to_native(o):
     # Super obnoxious way to hide pystk
@@ -156,24 +186,8 @@ class Match:
         if ray is not None and isinstance(f, (ray.types.ObjectRef, ray._raylet.ObjectRef)):
             return ray.get(f)
         return f
+    
 
-    def extract_peak(heatmap, max_pool_ks=7, min_score=-5, max_det=1):
-        """
-           Your code here.
-           Extract local maxima (peaks) in a 2d heatmap.
-           @heatmap: H x W heatmap containing peaks (similar to your training heatmap)
-           @max_pool_ks: Only return points that are larger than a max_pool_ks x max_pool_ks window around the point
-           @min_score: Only return peaks greater than min_score
-           @return: List of peak locations only [(score, cx, cy), ...], where cx, cy are the position of a peak and score is the
-                    heatmap value at the peak. Return no more than max_det peaks per image
-        """
-        max_cls = F.max_pool2d(heatmap[None, None], kernel_size=max_pool_ks, padding=max_pool_ks // 2, stride=1)[0, 0]
-        possible_det = heatmap - (max_cls > heatmap).float() * 1e5
-        if max_det > possible_det.numel():
-            max_det = possible_det.numel()
-        score, loc = torch.topk(possible_det.view(-1), max_det)
-        return [(int(l) % heatmap.size(1), int(l) // heatmap.size(1))
-                for s, l in zip(score.cpu(), loc.cpu()) if s > min_score]
 
 
     def _check(self, team1, team2, where, n_iter, timeout):
@@ -246,17 +260,32 @@ class Match:
             if self._use_graphics:
                 team1_images = [np.array(race.render_data[i].image) for i in range(0, len(race.render_data), 2)]
                 team2_images = [np.array(race.render_data[i].image) for i in range(1, len(race.render_data), 2)]
-            
+            puck_on_screen = []
+            kart_locations = []
+            ball_location = state.soccer.ball.location[0::2]
+            kart_ball_distances = []
+            puck_image_centers = []
+            for p in state.players:
+                kart_loc = p.kart.front[0::2]
+                kart_locations.append(kart_loc)
+                kart_ball_dist = np.linalg.norm(np.array(p.kart.front[0::2])-np.array(state.soccer.ball.location[0::2]))
+                kart_ball_distances.append(kart_ball_dist)
             for render in race.render_data:
                 r = render.instance.copy()
                 r = r >> self._pystk.object_type_shift
                 if 8 in r:
                     r[r != 8] = 0
-                    print('center of puck =',self.extract_peak(r))
+                    center_puck = extract_peak(r)
+                    puck_image_centers.append(center_puck)
+                    puck_on_screen.append(True)
+                    #print('center of puck =',center_puck)
                 else: 
-                    print('puck not in image')
+                    #print('puck not in image')
+                    puck_image_centers.append(np.array((-1,-1)))
+                    puck_on_screen.append(False)
                 #print(8 in (render.instance >> self._pystk.object_type_shift))
-
+            #for i in range(0,4):
+                #print('kart location =',kart_locations[i],'ball location =',ball_location,'ball distance =',kart_ball_distances[i],'ball on screen?',puck_on_screen[i],'ball_coord =',puck_image_centers[i])
             # Have each team produce actions (in parallel)
             if t1_can_act:
                 if t1_type == 'image':
