@@ -255,11 +255,16 @@ class Match:
             team1_state = [to_native(p) for p in state.players[0::2]]
             team2_state = [to_native(p) for p in state.players[1::2]]
             soccer_state = to_native(state.soccer)
-            #print(soccer_state)
             team1_images = team2_images = None
+            team1_instances = team2_instances = None
             if self._use_graphics:
                 team1_images = [np.array(race.render_data[i].image) for i in range(0, len(race.render_data), 2)]
+                team1_instances = [np.array(race.render_data[i].instance) for i in range(0, len(race.render_data), 2)]
                 team2_images = [np.array(race.render_data[i].image) for i in range(1, len(race.render_data), 2)]
+                team2_instances = [np.array(race.render_data[i].instance) for i in range(1, len(race.render_data), 2)]
+
+            '''
+            # BEGIN ADDED CODE TO CHECK PROJECTILES
             puck_on_screen = []
             kart_locations = []
             ball_location = state.soccer.ball.location[0::2]
@@ -286,6 +291,10 @@ class Match:
                 #print(8 in (render.instance >> self._pystk.object_type_shift))
             #for i in range(0,4):
                 #print('kart location =',kart_locations[i],'ball location =',ball_location,'ball distance =',kart_ball_distances[i],'ball on screen?',puck_on_screen[i],'ball_coord =',puck_image_centers[i])
+            
+            # END ADDED CODE FOR PROJECTILES/PUCK
+            '''
+
             # Have each team produce actions (in parallel)
             if t1_can_act:
                 if t1_type == 'image':
@@ -321,7 +330,8 @@ class Match:
 
             if record_fn:
                 self._r(record_fn)(team1_state, team2_state, soccer_state=soccer_state, actions=actions,
-                                   team1_images=team1_images, team2_images=team2_images)
+                                   team1_images=team1_images, team2_images=team2_images,
+                                   team1_instances=team1_instances, team2_instances=team2_instances)
 
             logging.debug('  race.step  [score = {}]'.format(state.soccer.score))
             if (not race.step([self._pystk.Action(**a) for a in actions]) and num_player) or sum(state.soccer.score) >= max_score:

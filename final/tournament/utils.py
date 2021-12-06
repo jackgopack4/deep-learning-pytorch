@@ -7,6 +7,10 @@ class Team(IntEnum):
     BLUE = 1
 
 
+def to_image(x, proj, view):
+    p = proj @ view @ np.array(list(x) + [1])
+    return np.clip(np.array([p[0] / p[-1], -p[1] / p[-1]]), -1, 1)
+
 def video_grid(team1_images, team2_images, team1_state='', team2_state=''):
     from PIL import Image, ImageDraw
     grid = np.hstack((np.vstack(team1_images), np.vstack(team2_images)))
@@ -57,7 +61,8 @@ def map_image(team1_state, team2_state, soccer_state, resolution=512, extent=65,
 
 # Recording functionality
 class BaseRecorder:
-    def __call__(self, team1_state, team2_state, soccer_state, actions, team1_images=None, team2_images=None):
+    def __call__(self, team1_state, team2_state, soccer_state, actions, team1_images=None, team2_images=None,
+                 team1_instances=None, team2_instances=None):
         raise NotImplementedError
 
     def __and__(self, other):
@@ -84,8 +89,9 @@ class VideoRecorder(BaseRecorder):
         import imageio
         self._writer = imageio.get_writer(video_file, fps=20)
 
-    def __call__(self, team1_state, team2_state, soccer_state, actions, team1_images=None, team2_images=None):
-        if team1_images and team2_images:
+    def __call__(self, team1_state, team2_state, soccer_state, actions, team1_images=None, team2_images=None,
+                 team1_instances=None, team2_instances=None):
+        if team1_images and team2_images :
             self._writer.append_data(np.array(video_grid(team1_images, team2_images,
                                                          'Blue: %d' % soccer_state['score'][1],
                                                          'Red: %d' % soccer_state['score'][0])))
@@ -102,11 +108,14 @@ class DataRecorder(BaseRecorder):
         self._record_images = record_images
         self._data = []
 
-    def __call__(self, team1_state, team2_state, soccer_state, actions, team1_images=None, team2_images=None):
+    def __call__(self, team1_state, team2_state, soccer_state, actions, team1_images=None, team2_images=None,
+                 team1_instances=None, team2_instances=None):
         data = dict(team1_state=team1_state, team2_state=team2_state, soccer_state=soccer_state, actions=actions)
         if self._record_images:
             data['team1_images'] = team1_images
             data['team2_images'] = team2_images
+            data['team1_instances'] = team1_instances
+            data['team2_instances'] = team2_instances
         self._data.append(data)
 
     def data(self):
@@ -117,16 +126,19 @@ class DataRecorder(BaseRecorder):
 
 
 class StateRecorder(BaseRecorder):
-    def __init__(self, state_action_file, record_images=False):
+    def __init__(self, state_action_file, record_images=True):
         self._record_images = record_images
         self._f = open(state_action_file, 'wb')
 
-    def __call__(self, team1_state, team2_state, soccer_state, actions, team1_images=None, team2_images=None):
+    def __call__(self, team1_state, team2_state, soccer_state, actions, team1_images=None, team2_images=None,
+                 team1_instances=None, team2_instances=None):
         from pickle import dump
         data = dict(team1_state=team1_state, team2_state=team2_state, soccer_state=soccer_state, actions=actions)
         if self._record_images:
             data['team1_images'] = team1_images
             data['team2_images'] = team2_images
+            data['team1_instances'] = team1_instances
+            data['team2_instances'] = team2_instances
         dump(dict(data), self._f)
         self._f.flush()
 
