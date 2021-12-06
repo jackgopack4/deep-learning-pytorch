@@ -338,6 +338,7 @@ class Match:
                 break
 
         race.stop()
+        #record_fn.data()
         del race
 
         return state.soccer.score
@@ -355,6 +356,7 @@ if __name__ == '__main__':
     parser = ArgumentParser(description="Play some Ice Hockey. List any number of players, odd players are in team 1, even players team 2.")
     parser.add_argument('-r', '--record_video', help="Do you want to record a video?")
     parser.add_argument('-s', '--record_state', help="Do you want to pickle the state?")
+    parser.add_argument('-d', '--record_data', help="Do you want to record data?")    
     parser.add_argument('-f', '--num_frames', default=1200, type=int, help="How many steps should we play for?")
     parser.add_argument('-p', '--num_players', default=2, type=int, help="Number of players per team")
     parser.add_argument('-m', '--max_score', default=3, type=int, help="How many goal should we play to?")
@@ -379,6 +381,9 @@ if __name__ == '__main__':
 
         if args.record_state:
             recorder = recorder & utils.StateRecorder(args.record_state)
+
+        if args.record_data:
+            recorder = recorder & utils.DataRecorder(args.record_data)
 
         # Start the match
         #match = Match(use_graphics=team1.agent_type == 'image' or team2.agent_type == 'image')

@@ -7,16 +7,21 @@ class Team(IntEnum):
     BLUE = 1
 
 
-def to_image(x, proj, view):
+def to_image(x, proj, view): #puck coordinate
     p = proj @ view @ np.array(list(x) + [1])
     return np.clip(np.array([p[0] / p[-1], -p[1] / p[-1]]), -1, 1)
+
+def puck_in_frame(instance):
+    i = instance >> 24
+    return 8 in i
+
 
 def video_grid(team1_images, team2_images, team1_state='', team2_state=''):
     from PIL import Image, ImageDraw
     grid = np.hstack((np.vstack(team1_images), np.vstack(team2_images)))
     grid = Image.fromarray(grid)
     grid = grid.resize((grid.width // 2, grid.height // 2))
-
+    
     draw = ImageDraw.Draw(grid)
     draw.text((20, 20), team1_state, fill=(255, 0, 0))
     draw.text((20, grid.height // 2 + 20), team2_state, fill=(0, 0, 255))
@@ -119,6 +124,45 @@ class DataRecorder(BaseRecorder):
         self._data.append(data)
 
     def data(self):
+        from PIL import Image
+        from os import path
+        try:
+            makedirs('train_data')
+        except OSError:
+            pass
+        team_id = 0
+        img_id = 0
+        for d in self._data:
+            fn = path.join('train_data', 'AI' + '_team_%05d' % team_id + '_%05d' % img_id)
+            team1_images = d.get('team1_images')
+            team2_images = d.get('team2_images')
+            ball_loc = d.get('soccer_state').get('ball').get('location')
+            for i in len(team1_images):
+                team_id = 1
+                fn = path.join('train_data', 'AI' + '_team_%05d' % team_id + '_%05d' % img_id)
+                proj = d.get('team1_state')[i].get('camera').get('projection')
+                view = d.get('team1_state')[i].get('camera').get('view')
+                instance = d.get('team1_instances')[i]
+                in_frame = puck_in_frame(instance)
+                coord = to_image(ball_loc,proj,view)
+                im = team1_images[i]
+                Image.fromarray(im).save(fn + '.png')
+                with open(fn + '.csv', 'w') as f:
+                    f.write('%r,%0.1f,%0.1f' % tuple(in_frame,coord))
+                img_id+=1
+            for j in len(team2_images):
+                team_id = 2
+                fn = path.join('train_data', 'AI' + '_team_%05d' % team_id + '_%05d' % img_id)
+                proj = d.get('team2_state')[j].get('camera').get('projection')
+                view = d.get('team2_state')[j].get('camera').get('view')
+                instance = d.get('team2_instances')[j]
+                in_frame = puck_in_frame(instance)
+                coord = to_image(ball_loc,proj,view)
+                im = team2_images[j]
+                Image.fromarray(im).save(fn + '.png')
+                with open(fn + '.csv', 'w') as f:
+                    f.write('%r,%0.1f,%0.1f' % tuple(in_frame,coord))
+                img_id+=1
         return self._data
 
     def reset(self):
@@ -133,7 +177,11 @@ class StateRecorder(BaseRecorder):
     def __call__(self, team1_state, team2_state, soccer_state, actions, team1_images=None, team2_images=None,
                  team1_instances=None, team2_instances=None):
         from pickle import dump
-        data = dict(team1_state=team1_state, team2_state=team2_state, soccer_state=soccer_state, actions=actions)
+        puck_on_screen = []
+        data = dict(team1_state=team1_state, 
+                    team2_state=team2_state, 
+                    soccer_state=soccer_state, 
+                    actions=actions)
         if self._record_images:
             data['team1_images'] = team1_images
             data['team2_images'] = team2_images
