@@ -119,8 +119,14 @@ class DataRecorder(BaseRecorder):
         if self._record_images:
             data['team1_images'] = team1_images
             data['team2_images'] = team2_images
-            data['team1_instances'] = team1_instances
-            data['team2_instances'] = team2_instances
+            team1_projectile = []
+            team2_projectile = []
+            for inst in team1_instances:
+                team1_projectile.append(puck_in_frame(inst))
+            for inst in team2_instances:
+                team2_projectile.append(puck_in_frame(inst))
+            data['team1_projectile'] = team1_projectile
+            data['team2_projectile'] = team2_projectile
         self._data.append(data)
 
     def data(self):
@@ -185,8 +191,14 @@ class StateRecorder(BaseRecorder):
         if self._record_images:
             data['team1_images'] = team1_images
             data['team2_images'] = team2_images
-            data['team1_instances'] = team1_instances
-            data['team2_instances'] = team2_instances
+            team1_projectile = []
+            team2_projectile = []
+            for inst in team1_instances:
+                team1_projectile.append(puck_in_frame(inst))
+            for inst in team2_instances:
+                team2_projectile.append(puck_in_frame(inst))
+            data['team1_projectile'] = team1_projectile
+            data['team2_projectile'] = team2_projectile
         dump(dict(data), self._f)
         self._f.flush()
 

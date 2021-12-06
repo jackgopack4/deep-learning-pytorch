@@ -38,23 +38,21 @@ class SuperTuxDataset(Dataset):
         self.labels = []
         for d in self.pickle:
             team1_images = d.get('team1_images')
-            team1_instances = d.get('team1_instances')
+            team1_projectile = d.get('team1_projectile')
             team2_images = d.get('team2_images')
-            team2_instances = d.get('team2_instances')
+            team2_projectile = d.get('team2_projectile')
             for i in len(team1_images):
                 self.images.append(team1_images[i])
                 proj = d.get('team1_state')[i].get('camera').get('projection')
                 view = d.get('team1_state')[i].get('camera').get('view')
-                instance = d.get('team1_instances')[i]
-                in_frame = puck_in_frame(instance)
+                in_frame = d.get('team1_projectile')[i]
                 coord = to_image(ball_loc,proj,view)
                 self.labels.append(tuple(in_frame,coord[0],coord[1]))
             for i in len(team2_images):
                 self.images.append(team2_images[i])
                 proj = d.get('team2_state')[i].get('camera').get('projection')
                 view = d.get('team2_state')[i].get('camera').get('view')
-                instance = d.get('team2_instances')[i]
-                in_frame = puck_in_frame(instance)
+                in_frame = d.get('team2_projectile')[i]
                 coord = to_image(ball_loc,proj,view)
                 self.labels.append(tuple(in_frame,coord[0],coord[1]))
         
