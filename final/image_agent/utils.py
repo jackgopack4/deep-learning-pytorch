@@ -6,8 +6,6 @@ import torchvision.transforms.functional as TF
 from . import dense_transforms
 from tournament import utils
 
-RESCUE_TIMEOUT = 30
-TRACK_OFFSET = 15
 DATASET_PATH = 'test.pkl'
 
 
@@ -35,9 +33,6 @@ def load_recording(recording):
 
 class SuperTuxDataset(Dataset):
     def __init__(self, dataset_path=DATASET_PATH, transform=dense_transforms.ToTensor()):
-        from PIL import Image
-        from glob import glob
-        from os import path
         self.pickle = tournament.utils.load_recording(dataset_path)
         self.images = []
         self.labels = []
