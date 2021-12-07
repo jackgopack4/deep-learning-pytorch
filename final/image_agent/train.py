@@ -1,6 +1,7 @@
 from .planner import Planner, save_model 
 import torch
 import torch.utils.tensorboard as tb
+from torchvision.transforms import ToTensor
 import numpy as np
 from .utils import load_data
 from . import dense_transforms
@@ -32,18 +33,20 @@ def train(args):
     transform = eval(args.transform, {k: v for k, v in inspect.getmembers(dense_transforms) if inspect.isclass(v)})
 
     train_data = load_data('test.pkl', transform=transform, num_workers=args.num_workers)
-
+    print(type(train_data))
+    #print(train_data)
     global_step = 0
     for epoch in range(args.num_epoch):
         model.train()
         puck_losses = []
         loc_losses = []
-        for img, label in train_data:
-            puck = label[0]
-            loc = label[1:2]
-            img, puck, loc = img.to(device), puck.to(device), loc.to(device)
-            
+        j = 0
+        for data in train_data:
+            print('j=',j)            
+            print(type(data))
 
+            data = data.to(device)
+            img, puck, loc = data
             pred_puck, pred_loc = model(img)
             puck_loss_val = puck_loss(pred_puck, puck)
             loc_loss_val = loc_loss(pred_loc, loc)
@@ -62,7 +65,8 @@ def train(args):
             global_step += 1
             
             losses.append(loss_val.detach().cpu().numpy())
-        
+            j+=1
+
         avg_loss = np.mean(losses)
         print('epoch %-3d \t loss = %0.3f' % (epoch, avg_loss))
         save_model(model)
