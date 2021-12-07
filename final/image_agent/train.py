@@ -92,8 +92,8 @@ def train(args):
             
             if valid_logger is not None:
                 valid_logger.add_scalar('puck_loss', puck_loss_val, global_step)
-                train_logger.add_scalar('loc_loss', loc_loss_val, global_step)
-                train_logger.add_scalar('loss', loss_val, global_step)
+                valid_logger.add_scalar('loc_loss', loc_loss_val, global_step)
+                valid_logger.add_scalar('loss', loss_val, global_step)
                 if global_step % 20 == 0:
                     log(valid_logger, img, loc, pred_loc, puck, pred_puck, global_step)
             
@@ -140,7 +140,7 @@ if __name__ == '__main__':
     parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
     parser.add_argument('-c', '--continue_training', action='store_true')
     parser.add_argument('-t', '--transform', default='Compose([ColorJitter(0.2, 0.5, 0.5, 0.2), ToTensor()])')
-    parser.add_argument('-l', '--loc_weight', type=float, default=0.1)
+    parser.add_argument('-l', '--loc_weight', type=float, default=0.01)
     parser.add_argument('-s', '--step_size',type=int,default=25)
 
     args = parser.parse_args()

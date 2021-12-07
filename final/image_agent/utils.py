@@ -27,20 +27,6 @@ def load_recording(recording):
         except EOFError:
             break
 
-def get_values(team_number, data, idx, ball_loc):
-    team = 'team%s' % team_number
-    puck = data.get(team+'_projectile')[idx]
-    teamstate = team+'_state'
-    noise = random.uniform(-1e-10,1e-10)
-    if(ball_loc[0] == ball_loc[1] == ball_loc[2] == 0.0):
-        ball_loc[0] = ball_loc[0] + random.uniform(-1e-10,1e-10)
-        ball_loc[1] = ball_loc[1] + random.uniform(-1e-10,1e-10)
-        ball_loc[2] = ball_loc[2] + random.uniform(-1e-10,1e-10)
-    proj = data.get(teamstate)[idx].get('camera').get('projection')
-    view = data.get(teamstate)[idx].get('camera').get('view')
-    loc = to_image(ball_loc,proj,view)
-    return puck,loc
-
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 class SuperTuxDataset(Dataset):
