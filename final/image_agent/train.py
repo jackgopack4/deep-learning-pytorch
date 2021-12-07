@@ -50,7 +50,7 @@ def train(args):
             pred_puck, pred_loc = model(img)
             puck_loss_val = puck_loss(pred_puck, puck)
             loc_loss_val = loc_loss(pred_loc, loc)
-            loss_val = puck_loss_val*0.25 + loc_loss_val * args.loc_weight
+            loss_val = puck_loss_val + loc_loss_val * args.loc_weight
 
             if train_logger is not None:
                 train_logger.add_scalar('puck_loss', puck_loss_val, global_step)
