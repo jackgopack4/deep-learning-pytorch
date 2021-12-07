@@ -25,6 +25,7 @@ class Planner(torch.nn.Module):
         self._conv = torch.nn.Sequential(*_conv)
         self.classifier = torch.nn.Linear(h-7, 1)
         self.location = torch.nn.Conv2d(h, 1, 1)
+        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, img):
         """
@@ -40,6 +41,7 @@ class Planner(torch.nn.Module):
         #print('conv model',x)
         puck = self.classifier(x)
         puck = puck.mean(dim=[1,2,3])
+        puck = self.sigmoid(puck)
         loc = spatial_argmax(self.location(x)[:, 0])
         return puck, loc
         # return self.classifier(x.mean(dim=[-2, -1]))

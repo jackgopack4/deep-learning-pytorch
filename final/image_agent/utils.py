@@ -61,15 +61,15 @@ class SuperTuxDataset(Dataset):
                     self.images.append(team1_images[i])
                     puck = d.get('team1_projectile')[i]
                     self.pucks.append(float(puck))
-                    proj = d.get('team1_state')[i].get('camera').get('projection')
-                    view = d.get('team1_state')[i].get('camera').get('view')
+                    proj = d.get('team1_state')[i].get('camera').get('projection').T
+                    view = d.get('team1_state')[i].get('camera').get('view').T
                     self.locs.append(self._to_image(ball_loc,proj,view))
                     #team2
                     self.images.append(team2_images[i])
                     puck = d.get('team2_projectile')[i]
                     self.pucks.append(float(puck))
-                    proj = d.get('team2_state')[i].get('camera').get('projection')
-                    view = d.get('team2_state')[i].get('camera').get('view')
+                    proj = d.get('team2_state')[i].get('camera').get('projection').T
+                    view = d.get('team2_state')[i].get('camera').get('view').T
                     self.locs.append(self._to_image(ball_loc,proj,view))
         self.transform = transform
 
