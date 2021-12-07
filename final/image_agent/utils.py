@@ -1,4 +1,5 @@
 import numpy as np
+import random
 import pystk
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -26,6 +27,20 @@ def load_recording(recording):
         except EOFError:
             break
 
+def get_values(team_number, data, idx, ball_loc):
+    team = 'team%s' % team_number
+    puck = data.get(team+'_projectile')[idx]
+    teamstate = team+'_state'
+    noise = random.uniform(-1e-10,1e-10)
+    if(ball_loc[0] == ball_loc[1] == ball_loc[2] == 0.0):
+        ball_loc[0] = ball_loc[0] + random.uniform(-1e-10,1e-10)
+        ball_loc[1] = ball_loc[1] + random.uniform(-1e-10,1e-10)
+        ball_loc[2] = ball_loc[2] + random.uniform(-1e-10,1e-10)
+    proj = data.get(teamstate)[idx].get('camera').get('projection')
+    view = data.get(teamstate)[idx].get('camera').get('view')
+    loc = to_image(ball_loc,proj,view)
+    return puck,loc
+
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 class SuperTuxDataset(Dataset):
@@ -42,20 +57,28 @@ class SuperTuxDataset(Dataset):
                 team2_projectile = d.get('team2_projectile')
                 ball_loc = d.get('soccer_state').get('ball').get('location')
                 for i in range(0,len(team1_images)):
+                    #team1
                     self.images.append(team1_images[i])
+                    puck = d.get('team1_projectile')[i]
+                    self.pucks.append(float(puck))
                     proj = d.get('team1_state')[i].get('camera').get('projection')
                     view = d.get('team1_state')[i].get('camera').get('view')
-                    self.pucks.append(float(d.get('team1_projectile')[i]))
-                    self.locs.append(to_image(ball_loc,proj,view))
+                    self.locs.append(self._to_image(ball_loc,proj,view))
+                    #team2
                     self.images.append(team2_images[i])
+                    puck = d.get('team2_projectile')[i]
+                    self.pucks.append(float(puck))
                     proj = d.get('team2_state')[i].get('camera').get('projection')
                     view = d.get('team2_state')[i].get('camera').get('view')
-                    self.pucks.append(float(d.get('team2_projectile')[i]))
-                    self.locs.append(to_image(ball_loc,proj,view))
+                    self.locs.append(self._to_image(ball_loc,proj,view))
         self.transform = transform
 
     def __len__(self):
         return len(self.images)
+
+    def _to_image(self, x, proj, view):
+        p = proj @ view @ np.array(list(x) + [1])
+        return np.clip(np.array([p[0] / p[-1], -p[1] / p[-1]]), -1, 1)
 
     def __getitem__(self, idx):
         img = self.images[idx]
