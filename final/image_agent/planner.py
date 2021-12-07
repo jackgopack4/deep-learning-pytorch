@@ -11,6 +11,23 @@ def spatial_argmax(logit):
     return torch.stack(((weights.sum(1) * torch.linspace(-1, 1, logit.size(2)).to(logit.device)[None]).sum(1),
                         (weights.sum(2) * torch.linspace(-1, 1, logit.size(1)).to(logit.device)[None]).sum(1)), 1)
 
+def extract_peak(heatmap, max_pool_ks=7, min_score=-5, max_det=100):
+    """
+       Your code here.
+       Extract local maxima (peaks) in a 2d heatmap.
+       @heatmap: H x W heatmap containing peaks (similar to your training heatmap)
+       @max_pool_ks: Only return points that are larger than a max_pool_ks x max_pool_ks window around the point
+       @min_score: Only return peaks greater than min_score
+       @return: List of peaks [(score, cx, cy), ...], where cx, cy are the position of a peak and score is the
+                heatmap value at the peak. Return no more than max_det peaks per image
+    """
+    max_cls = F.max_pool2d(heatmap[None, None], kernel_size=max_pool_ks, padding=max_pool_ks // 2, stride=1)[0, 0]
+    possible_det = heatmap - (max_cls > heatmap).float() * 1e5
+    if max_det > possible_det.numel():
+        max_det = possible_det.numel()
+    score, loc = torch.topk(possible_det.view(-1), max_det)
+    return [(float(s), int(l) % heatmap.size(1), int(l) // heatmap.size(1))
+            for s, l in zip(score.cpu(), loc.cpu()) if s > min_score]
 
 class Planner(torch.nn.Module):
     def __init__(self, channels=[16, 32, 32, 32]):
@@ -23,19 +40,20 @@ class Planner(torch.nn.Module):
             _conv += conv_block(c, h)
             h = c
 
-        self._conv = torch.nn.Sequential(*_conv, torch.nn.Conv2d(h, 1, 1))
-        # self.classifier = torch.nn.Linear(h, 2)
-        # self.classifier = torch.nn.Conv2d(h, 1, 1)
+        self._conv = torch.nn.Sequential(*_conv)
+        self.classifier = torch.nn.Linear(h, 1)
+        self.location = torch.nn.Conv2d(h, 1, 1)
 
     def forward(self, img):
         """
         Your code here
-        Predict the aim point in image coordinate, given the supertuxkart image
+        Predict if puck in image and puck location in image coordinate, given the supertuxkart image
         @img: (B,3,96,128)
-        return (B,2)
+        return [(B,1),(B,2)]
         """
+        
         x = self._conv(img)
-        return spatial_argmax(x[:, 0])
+        return self.classifier(x), spatial_argmax(self.location(x)[:, 0])
         # return self.classifier(x.mean(dim=[-2, -1]))
 
 

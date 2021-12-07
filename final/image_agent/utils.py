@@ -8,12 +8,6 @@ from tournament import utils
 
 DATASET_PATH = 'test.pkl'
 
-
-class Team(IntEnum):
-    RED = 0
-    BLUE = 1
-
-
 def to_image(x, proj, view): #puck coordinate
     p = proj @ view @ np.array(list(x) + [1])
     return np.clip(np.array([p[0] / p[-1], -p[1] / p[-1]]), -1, 1)
@@ -33,7 +27,7 @@ def load_recording(recording):
 
 class SuperTuxDataset(Dataset):
     def __init__(self, dataset_path=DATASET_PATH, transform=dense_transforms.ToTensor()):
-        self.pickle = tournament.utils.load_recording(dataset_path)
+        self.pickle = load_recording(dataset_path)
         self.images = []
         self.labels = []
         for d in self.pickle:
@@ -41,20 +35,21 @@ class SuperTuxDataset(Dataset):
             team1_projectile = d.get('team1_projectile')
             team2_images = d.get('team2_images')
             team2_projectile = d.get('team2_projectile')
-            for i in len(team1_images):
+            ball_loc = d.get('soccer_state').get('ball').get('location')
+            for i in range(0,len(team1_images)):
                 self.images.append(team1_images[i])
                 proj = d.get('team1_state')[i].get('camera').get('projection')
                 view = d.get('team1_state')[i].get('camera').get('view')
                 in_frame = d.get('team1_projectile')[i]
                 coord = to_image(ball_loc,proj,view)
-                self.labels.append(tuple(in_frame,coord[0],coord[1]))
-            for i in len(team2_images):
+                self.labels.append([in_frame,coord[0],coord[1]])
+            for i in range(0,len(team2_images)):
                 self.images.append(team2_images[i])
                 proj = d.get('team2_state')[i].get('camera').get('projection')
                 view = d.get('team2_state')[i].get('camera').get('view')
                 in_frame = d.get('team2_projectile')[i]
                 coord = to_image(ball_loc,proj,view)
-                self.labels.append(tuple(in_frame,coord[0],coord[1]))
+                self.labels.append([in_frame,coord[0],coord[1]])
         
         self.transform = transform(*self.images)
 

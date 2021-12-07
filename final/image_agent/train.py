@@ -23,26 +23,35 @@ def train(args):
     model = model.to(device)
     if args.continue_training:
         model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), 'planner.th')))
-
-    loss = torch.nn.L1Loss()
+    
+    puck_loss = torch.nn.BCEWithLogitsLoss()
+    loc_loss = torch.nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     
     import inspect
     transform = eval(args.transform, {k: v for k, v in inspect.getmembers(dense_transforms) if inspect.isclass(v)})
 
-    train_data = load_data('drive_data', transform=transform, num_workers=args.num_workers)
+    train_data = load_data('test.pkl', transform=transform, num_workers=args.num_workers)
 
     global_step = 0
     for epoch in range(args.num_epoch):
         model.train()
-        losses = []
+        puck_losses = []
+        loc_losses = []
         for img, label in train_data:
-            img, label = img.to(device), label.to(device)
+            puck = label[0]
+            loc = label[1:2]
+            img, puck, loc = img.to(device), puck.to(device), loc.to(device)
+            
 
-            pred = model(img)
-            loss_val = loss(pred, label)
+            pred_puck, pred_loc = model(img)
+            puck_loss_val = puck_loss(pred_puck, puck)
+            loc_loss_val = loc_loss(pred_loc, loc)
+            loss_val = puck_loss_val + loc_loss_val * args.loc_weight
 
             if train_logger is not None:
+                train_logger.add_scalar('puck_loss', puck_loss_val, global_step)
+                train_logger.add_scalar('loc_loss', loc_loss_val, global_step)
                 train_logger.add_scalar('loss', loss_val, global_step)
                 if global_step % 100 == 0:
                     log(train_logger, img, label, pred, global_step)
@@ -55,8 +64,7 @@ def train(args):
             losses.append(loss_val.detach().cpu().numpy())
         
         avg_loss = np.mean(losses)
-        if train_logger is None:
-            print('epoch %-3d \t loss = %0.3f' % (epoch, avg_loss))
+        print('epoch %-3d \t loss = %0.3f' % (epoch, avg_loss))
         save_model(model)
 
     save_model(model)
@@ -85,6 +93,7 @@ if __name__ == '__main__':
     parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
     parser.add_argument('-c', '--continue_training', action='store_true')
     parser.add_argument('-t', '--transform', default='Compose([ColorJitter(0.2, 0.5, 0.5, 0.2), RandomHorizontalFlip(), ToTensor()])')
+    parser.add_argument('-l', '--loc_weight', type=float, default=0.25)
 
     args = parser.parse_args()
     train(args)
