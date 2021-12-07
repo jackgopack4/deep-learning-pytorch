@@ -28,36 +28,33 @@ def train(args):
     puck_loss = torch.nn.BCEWithLogitsLoss()
     loc_loss = torch.nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.25, verbose=True)
     import inspect
     transform = eval(args.transform, {k: v for k, v in inspect.getmembers(dense_transforms) if inspect.isclass(v)})
 
     train_data = load_data('test.pkl', transform=transform, num_workers=args.num_workers)
-    print(type(train_data))
-    #print(train_data)
     global_step = 0
     for epoch in range(args.num_epoch):
         model.train()
+        losses = []
         puck_losses = []
         loc_losses = []
         j = 0
         for data in train_data:
-            print('j=',j)            
-            print(type(data))
-
-            data = data.to(device)
-            img, puck, loc = data
+            img = data[0].to(device)
+            puck = data[1].to(device)
+            loc = data[2].to(device)
             pred_puck, pred_loc = model(img)
             puck_loss_val = puck_loss(pred_puck, puck)
             loc_loss_val = loc_loss(pred_loc, loc)
-            loss_val = puck_loss_val + loc_loss_val * args.loc_weight
+            loss_val = puck_loss_val*0.25 + loc_loss_val * args.loc_weight
 
             if train_logger is not None:
                 train_logger.add_scalar('puck_loss', puck_loss_val, global_step)
                 train_logger.add_scalar('loc_loss', loc_loss_val, global_step)
                 train_logger.add_scalar('loss', loss_val, global_step)
-                if global_step % 100 == 0:
-                    log(train_logger, img, label, pred, global_step)
+                if global_step % 20 == 0:
+                    log(train_logger, img, loc, pred_loc, global_step)
 
             optimizer.zero_grad()
             loss_val.backward()
@@ -65,10 +62,15 @@ def train(args):
             global_step += 1
             
             losses.append(loss_val.detach().cpu().numpy())
+            puck_losses.append(puck_loss_val.detach().cpu().numpy())
+            loc_losses.append(loc_loss_val.detach().cpu().numpy())
             j+=1
 
+        scheduler.step()
         avg_loss = np.mean(losses)
-        print('epoch %-3d \t loss = %0.3f' % (epoch, avg_loss))
+        avg_puck_loss = np.mean(puck_losses)
+        avg_loc_loss = np.mean(loc_losses)
+        print('epoch %-3d \t puck_loss = %0.3f \t loc_loss = %0.3f' % (epoch, avg_puck_loss, avg_loc_loss))
         save_model(model)
 
     save_model(model)
@@ -79,8 +81,8 @@ def log(logger, img, label, pred, global_step):
     fig, ax = plt.subplots(1, 1)
     ax.imshow(TF.to_pil_image(img[0].cpu()))
     WH2 = np.array([img.size(-1), img.size(-2)])/2
-    ax.add_artist(plt.Circle(WH2*(label[0].cpu().detach().numpy()+1), 2, ec='g', fill=False, lw=1.5))
-    ax.add_artist(plt.Circle(WH2*(pred[0].cpu().detach().numpy()+1), 2, ec='r', fill=False, lw=1.5))
+    ax.add_artist(plt.Circle(WH2*(label[0].cpu().detach().numpy()+1), 5, ec='g', fill=False, lw=1.5))
+    ax.add_artist(plt.Circle(WH2*(pred[0].cpu().detach().numpy()+1), 5, ec='r', fill=False, lw=1.5))
     logger.add_figure('viz', fig, global_step)
     del ax, fig
 
@@ -92,12 +94,13 @@ if __name__ == '__main__':
 
     parser.add_argument('--log_dir')
     # Put custom arguments here
-    parser.add_argument('-n', '--num_epoch', type=int, default=50)
+    parser.add_argument('-n', '--num_epoch', type=int, default=30)
     parser.add_argument('-w', '--num_workers', type=int, default=4)
     parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
     parser.add_argument('-c', '--continue_training', action='store_true')
-    parser.add_argument('-t', '--transform', default='Compose([ColorJitter(0.2, 0.5, 0.5, 0.2), RandomHorizontalFlip(), ToTensor()])')
-    parser.add_argument('-l', '--loc_weight', type=float, default=0.25)
+    parser.add_argument('-t', '--transform', default='Compose([ColorJitter(0.2, 0.5, 0.5, 0.2), ToTensor()])')
+    parser.add_argument('-l', '--loc_weight', type=float, default=0.75)
+    parser.add_argument('-s', '--step_size',type=int,default=10)
 
     args = parser.parse_args()
     train(args)

@@ -41,7 +41,7 @@ class SuperTuxDataset(Dataset):
                 #print('called load_recording')
                 j+=1
                 #print('j=',j)
-                if(j > 127): break
+                #if(j > 127): break
                 team1_images = d.get('team1_images')
                 team1_projectile = d.get('team1_projectile')
                 team2_images = d.get('team2_images')
@@ -53,15 +53,14 @@ class SuperTuxDataset(Dataset):
                     #print(data'team1_image=',img)
                     proj = d.get('team1_state')[i].get('camera').get('projection')
                     view = d.get('team1_state')[i].get('camera').get('view')
-                    self.pucks.append(int(d.get('team1_projectile')[i]))
+                    self.pucks.append(float(d.get('team1_projectile')[i]))
                     self.locs.append(to_image(ball_loc,proj,view))
                     #self.labels.append((in_frame,coord[0],coord[1]))
                     #self.data.append((img, in_frame,coord))
-                for i in range(0,len(team2_images)):
                     self.images.append(team2_images[i])
                     proj = d.get('team2_state')[i].get('camera').get('projection')
                     view = d.get('team2_state')[i].get('camera').get('view')
-                    self.pucks.append(int(d.get('team2_projectile')[i]))
+                    self.pucks.append(float(d.get('team2_projectile')[i]))
                     self.locs.append(to_image(ball_loc,proj,view))
                     #self.labels.append((in_frame,coord[0],coord[1]))
                     #self.data.append((img, in_frame,coord))
@@ -80,7 +79,9 @@ class SuperTuxDataset(Dataset):
             img = Image.fromarray(img)
             #print(img)
             img = self.transform(img)
-        data = (img, np.array(puck), np.array(loc))
+        data = (img[0], torch.tensor(puck), torch.tensor(loc))
+        #print('returning data at idx',idx)
+        #print(data)
         return data
 
 def load_data(dataset_path=DATASET_PATH, transform=dense_transforms.ToTensor(), num_workers=0, batch_size=128):
