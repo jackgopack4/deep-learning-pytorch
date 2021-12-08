@@ -23,20 +23,20 @@ class Planner(torch.nn.Module):
             h = c
 
         self._conv = torch.nn.Sequential(*_conv)
-        self.classifier = torch.nn.Sequential(torch.nn.Linear(h, 1))
+        self.classifier = torch.nn.Linear(h, 2)
         self.location = torch.nn.Conv2d(h, 1, 1)
-        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, img):
         """
         Your code here
         Predict if puck in image and puck location in image coordinate, given the supertuxkart image
         @img: (B,3,300,400)
-        return [(B,1),(B,2)]
+        return [(B,2),(B,2)]
         """
         x = self._conv(img)
         puck = x.mean(dim=[2,3])
-        puck = self.classifier(puck)[:,0]
+        puck = self.classifier(puck)
+        #print('puck post classifier',puck)
         loc = spatial_argmax(self.location(x)[:, 0])
         return puck, loc
 
