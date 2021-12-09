@@ -1,3 +1,14 @@
+import pystk
+import numpy as np
+
+def load_model():
+    from torch import load
+    from os import path
+    r = Planner()
+    r.load_state_dict(load(path.join(path.dirname(path.abspath(__file__)), 'planner.th'), map_location='cpu'))
+    return r
+
+
 
 class Team:
     agent_type = 'image'
@@ -7,8 +18,11 @@ class Team:
           TODO: Load your agent here. Load network parameters, and other parts of our model
           We will call this function with default arguments only
         """
+
         self.team = None
         self.num_players = None
+
+        self.model = load_model().eval()
 
     def new_match(self, team: int, num_players: int) -> list:
         """
@@ -61,5 +75,37 @@ class Team:
                  rescue:       bool (optional. no clue where you will end up though.)
                  steer:        float -1..1 steering angle
         """
-        # TODO: Change me. I'm just cruising straight
-        return [dict(acceleration=1, steer=0)] * self.num_players
+        pred_puck, loc = self.model(player_image)
+        sigmoid = torch.nn.Sigmoid()
+        puck = sigmoid(pred_puck[:,0])
+        dist = pred_puck[:,1]
+        
+        current_vel = player_state.get('kart').get('velocity')
+        steer_gain=2
+        skid_thresh=0.5
+        target_vel=25
+        brake = False
+        nitro = False
+        steer_angle = steer_gain * loc[0]
+
+        acceleration = 1.0 if current_vel < target_vel else 0.0
+
+        steer = np.clip(steer_angle * steer_gain, -1, 1)
+
+        # Compute skidding
+        if abs(steer_angle) > skid_thresh:
+            drift = True
+        else:
+            drift = False
+
+        if puck<0.69:
+            # I think the puck is out of frame
+            brake = True
+            acceleration = 0
+            steer = 0.420
+        else:
+            if np.absolute(loc[0])<0.1 && np.absolute(loc[0])<0.1:
+                nitro = True
+
+        return [dict(acceleration=acceleration, brake=brake, drift=drift,
+                     nitro=nitro, steer=steer)] * self.num_players
