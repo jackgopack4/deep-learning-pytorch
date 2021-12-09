@@ -1,17 +1,6 @@
 import pystk
 import numpy as np
-from image_agent import planner
-import path
-
-def load_model():
-    print('called load_model')
-    from torch import load
-    from os import path
-    r = Planner()
-    r.load_state_dict(load(path.join(path.dirname(path.abspath(__file__)), 'planner.th'), map_location='cpu'))
-    print('loading model', r)
-    return r
-
+from . import planner
 
 
 class Team:
@@ -24,9 +13,10 @@ class Team:
         """
         print('called init for imageagent')
         self.team = None
-        self.num_players = 2
-
-        self.model = load_model().eval()
+        self.num_players = None
+        r = planner.Planner()
+        self.model = r.load_model()
+        self.model.eval()
 
     def new_match(self, team: int, num_players: int) -> list:
         """
@@ -41,6 +31,7 @@ class Team:
         """
            TODO: feel free to edit or delete any of the code below
         """
+        print('called new_match')
         self.team, self.num_players = team, num_players
         return ['tux'] * num_players
 

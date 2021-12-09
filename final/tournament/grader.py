@@ -1,5 +1,5 @@
 import sys
-
+import importlib
 
 class CheckFailed(Exception):
     def __init__(self, why):
@@ -168,17 +168,22 @@ def load_assignment(name, f_out=sys.stdout, pre_import_fn=None):
     import sys
     import tempfile
     import zipfile
-
+    print('running load_assignment')
     if Path(name).is_dir():
+        print('path(name)',Path(name))
         if pre_import_fn is not None:
             pre_import_fn()
+            print('called pre_import_fn()')
+        #print(importlib.import_module(name))
         return importlib.import_module(name)
 
     with zipfile.ZipFile(name) as f:
         tmp_dir = Path(tempfile.mkdtemp())
+        print(tmp_dir)
         atexit.register(lambda: rmtree(tmp_dir))
 
         f.extractall(tmp_dir)
+        print('extractall')
         module_names = list(tmp_dir.glob('*/'))
         if len(module_names) != 1:
             print('Malformed zip file, expecting exactly one top-level folder, got %d' % len(module_names), file=f_out)

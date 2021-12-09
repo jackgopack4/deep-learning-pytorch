@@ -9,12 +9,6 @@ MAX_FRAMES = 1000
 
 RunnerInfo = namedtuple('RunnerInfo', ['agent_type', 'error', 'total_act_time'])
 
-# attributed to https://stackoverflow.com/a/31735642
-def angle_between(p1, p2):
-    ang1 = np.arctan2(*p1[::-1])
-    ang2 = np.arctan2(*p2[::-1])
-    return np.rad2deg((ang1 - ang2) % (2 * np.pi))
-
 def to_native(o):
     # Super obnoxious way to hide pystk
     import pystk
@@ -60,6 +54,7 @@ class TeamRunner:
         from pathlib import Path
         try:
             from grader import grader
+            print('importing grader')
         except ImportError:
             try:
                 from . import grader
@@ -68,9 +63,12 @@ class TeamRunner:
 
         self._error = None
         self._team = None
+        print('about to call load_assignment')
         try:
             if isinstance(team_or_dir, (str, Path)):
+
                 assignment = grader.load_assignment(team_or_dir)
+                print('assignment',assignment)
                 if assignment is None:
                     self._error = 'Failed to load submission.'
                 else:
@@ -78,6 +76,7 @@ class TeamRunner:
                     self._team = assignment.Team()
             else:
                 self._team = team_or_dir
+                print('self._team',self._team)
         except Exception as e:
             self._error = 'Failed to load submission: {}'.format(str(e))
         if hasattr(self, '_team') and self._team is not None:
@@ -192,6 +191,7 @@ class Match:
         # Start a new match
         t1_cars = self._g(self._r(team1.new_match)(0, num_player)) or ['tux']
         t2_cars = self._g(self._r(team2.new_match)(1, num_player)) or ['tux']
+        print(team2.new_match)
         print('t2_cars',t2_cars)
         t1_type, *_ = self._g(self._r(team1.info)())
         t2_type, *_ = self._g(self._r(team2.info)())
@@ -201,7 +201,6 @@ class Match:
 
         # Deal with crashes
         t1_can_act, t2_can_act = self._check(team1, team2, 'new_match', 0, timeout)
-
         # Setup the race config
         logging.info('Setting up race')
         print('setting up race')
