@@ -36,7 +36,6 @@ class Planner(torch.nn.Module):
         x = self._conv(img)
         puck = x.mean(dim=[2,3])
         puck = self.classifier(puck)
-        #print('puck post classifier',puck)
         loc = spatial_argmax(self.location(x)[:, 0])
         return puck, loc
 
@@ -44,6 +43,7 @@ class Planner(torch.nn.Module):
 def save_model(model):
     from torch import save
     from os import path
+    import copy
     if isinstance(model, Planner):
         return save(model.state_dict(), path.join(path.dirname(path.abspath(__file__)), 'planner.th'))
     raise ValueError("model type '%s' not supported!" % str(type(model)))

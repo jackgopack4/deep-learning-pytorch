@@ -1,6 +1,10 @@
 import pystk
 import numpy as np
 from . import planner
+import torch
+from os import path 
+from torch import load
+from torchvision.transforms import ToTensor
 
 
 class Team:
@@ -11,13 +15,18 @@ class Team:
           TODO: Load your agent here. Load network parameters, and other parts of our model
           We will call this function with default arguments only
         """
-        print('called init for imageagent')
         self.team = None
         self.num_players = None
+        self.transform = ToTensor()
         r = planner.Planner()
-        self.model = r.load_model()
-        self.model.eval()
-
+        r.load_state_dict(load(path.join(path.dirname(path.abspath(__file__)), 'planner.th'), map_location='cpu'))
+        self.model = r
+        self.prev_location = None
+        self.prev_velocity = None
+        self.own_goal = None
+        self.target_goal = None
+        self.goal_width = 10.
+        
     def new_match(self, team: int, num_players: int) -> list:
         """
         Let's start a new match. You're playing on a `team` with `num_players` and have the option of choosing your kart
@@ -31,9 +40,19 @@ class Team:
         """
            TODO: feel free to edit or delete any of the code below
         """
-        print('called new_match')
         self.team, self.num_players = team, num_players
+        if self.team == 0:
+            self.own_goal = [0., 64.]
+            self.target_goal = [0., -64.]
+        else: 
+            self.own_goal = [0., -64.]
+            self.target_goal = [0., 64]
         return ['tux'] * num_players
+
+    def transform_images(self, image_0, image_1):
+        i0 = self.transform(image_0)
+        i1 = self.transform(image_1)
+        return torch.stack([i0,i1],0)
 
     def act(self, player_state, player_image):
         """
@@ -70,37 +89,74 @@ class Team:
                  rescue:       bool (optional. no clue where you will end up though.)
                  steer:        float -1..1 steering angle
         """
-        pred_puck, loc = self.model(player_image)
-        sigmoid = torch.nn.Sigmoid()
-        puck = sigmoid(pred_puck[:,0])
-        dist = pred_puck[:,1]
-        
-        current_vel = player_state.get('kart').get('velocity')
+        '''
+        img0 = self.transform(player_image[0])
+        img1 = self.transform(player_image[1])
+        img0 = img0[None,:]
+        img1 = img1[None,:]
+        '''
+        # transform images to tensor for input to model
+        img_stack = self.transform_images(player_image[0],player_image[1])
+        pred_puck, loc = self.model(img_stack)
+
+        # get current values for puck, dist, location, velocity
+        p0_puck_onscreen = pred_puck[0,0].detach()
+        p1_puck_onscreen = pred_puck[1,0].detach()
+
+        p0_puck_dist = pred_puck[0,1].detach()
+        p1_puck_dist = pred_puck[1,1].detach()
+
+        p0_puck_loc = loc[0,:].detach()
+        p1_puck_loc = loc[1,:].detach()
+
+        p0_current_vel = player_state[0].get('kart').get('velocity')
+        p1_current_vel = player_state[1].get('kart').get('velocity')
+        p0_velocity_magnitude = np.linalg.norm([p0_current_vel[0],p0_current_vel[2]])
+        p1_velocity_magnitude = np.linalg.norm([p1_current_vel[0],p1_current_vel[2]])
+
+        p0_current_location = player_state[0].get('kart').get('front')
+        p1_current_location = player_state[1].get('kart').get('front')
+
+        # set constants for calculations
         steer_gain=2
         skid_thresh=0.5
         target_vel=25
         brake = False
         nitro = False
-        steer_angle = steer_gain * loc[0]
+        loc_0 = loc[0].detach().numpy()
+        steer_angle = steer_gain * loc_0[0]
 
-        acceleration = 1.0 if current_vel < target_vel else 0.0
+        acceleration = 1.0 if velocity < target_vel else 0.0
 
         steer = np.clip(steer_angle * steer_gain, -1, 1)
-
         # Compute skidding
         if abs(steer_angle) > skid_thresh:
             drift = True
         else:
             drift = False
 
-        if puck<0.69:
+        # what to do if kart is stuck (velocity ~0, location ~ same as prev)
+
+        # determine which goal is mine (based on team)
+
+        # make one player defensive
+        # e.g. sit in front of own goal (determine using coordinates)
+        # only act if puck gets close
+        # hit it away then back up to desired location
+
+        print('puck',puck.detach(),'at distance',dist.detach())
+        print('kart location',current_location, 'velocity',current_vel)
+        if puck.detach()<0.5:
+            print('puck out of frame')
             # I think the puck is out of frame
             brake = True
             acceleration = 0
             #steer = 0.420
         else:
-            if np.absolute(loc[0])<0.1 && np.absolute(loc[0])<0.1:
+            print('puck in frame')
+            if np.absolute(loc_0[0])<0.1 and np.absolute(loc_0[1])<0.1:
                 nitro = True
-
+        self.prev_location = current_location
+        self.prev_velocity = current_vel
         return [dict(acceleration=acceleration, brake=brake, drift=drift,
                      nitro=nitro, steer=steer)] * self.num_players

@@ -53,14 +53,14 @@ def train(args):
             puck_loss_val = puck_loss(pred_puck[:,0], puck)
             loc_loss_val = loc_loss(pred_loc, loc)
             dist_loss_val = dist_loss(pred_puck[:,1],dist)
-            loss_val = puck_loss_val + dist_loss_val*args.loss_weight*2.5 + loc_loss_val * args.loss_weight
+            loss_val = puck_loss_val + dist_loss_val*args.loss_weight*5 + loc_loss_val * args.loss_weight
 
             if train_logger is not None:
                 train_logger.add_scalar('puck_loss', puck_loss_val, global_step)
                 train_logger.add_scalar('loc_loss', loc_loss_val, global_step)
                 train_logger.add_scalar('dist_loss',dist_loss_val,global_step)
                 train_logger.add_scalar('loss', loss_val, global_step)
-                if global_step % 20 == 0:
+                if global_step % 2 == 0:
                     log(train_logger, img, loc, pred_loc, puck, dist, pred_puck, global_step)
 
             optimizer.zero_grad()
@@ -94,14 +94,14 @@ def train(args):
             puck_loss_val = puck_loss(pred_puck[:,0], puck)
             loc_loss_val = loc_loss(pred_loc, loc)
             dist_loss_val = dist_loss(pred_puck[:,1], dist)
-            loss_val = puck_loss_val + dist_loss_val*args.loss_weight*2.5 + loc_loss_val * args.loss_weight
+            loss_val = puck_loss_val + dist_loss_val*args.loss_weight*5 + loc_loss_val * args.loss_weight
             
             if valid_logger is not None:
                 valid_logger.add_scalar('puck_loss', puck_loss_val, global_step)
                 valid_logger.add_scalar('loc_loss', loc_loss_val, global_step)
                 valid_logger.add_scalar('dist_loss', dist_loss_val, global_step)
                 valid_logger.add_scalar('loss', loss_val, global_step)
-                if global_step % 20 == 0:
+                if global_step % 2 == 0:
                     log(valid_logger, img, loc, pred_loc, puck, dist, pred_puck, global_step)
             
             global_step += 1
@@ -122,6 +122,12 @@ def train(args):
             lowest_loss_val = avg_loc_loss
 
     #save_model(model)
+    # An example input you would normally provide to your model's forward() method.
+    example = torch.rand(1, 3, 300, 400)
+    model.to('cpu')
+    # Use torch.jit.trace to generate a torch.jit.ScriptModule via tracing.
+    traced_script_module = torch.jit.trace(model, example)
+    traced_script_module.save("image_agent.pt")
 
 def log(logger, img, loc, pred_loc, puck, dist, pred_puck, global_step):
     import matplotlib.pyplot as plt

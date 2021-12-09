@@ -54,7 +54,7 @@ class TeamRunner:
         from pathlib import Path
         try:
             from grader import grader
-            print('importing grader')
+            #print('importing grader')
         except ImportError:
             try:
                 from . import grader
@@ -63,22 +63,24 @@ class TeamRunner:
 
         self._error = None
         self._team = None
-        print('about to call load_assignment')
+        #print('about to call load_assignment')
         try:
             if isinstance(team_or_dir, (str, Path)):
 
                 assignment = grader.load_assignment(team_or_dir)
-                print('assignment',assignment)
+                #print('assignment',assignment)
                 if assignment is None:
                     self._error = 'Failed to load submission.'
+                    #print('Failed to load submission')
                 else:
-                    print('creating new Team() object')
+                    #print('creating new Team() object',assignment.Team())
                     self._team = assignment.Team()
             else:
                 self._team = team_or_dir
-                print('self._team',self._team)
+                #print('self._team',self._team)
         except Exception as e:
             self._error = 'Failed to load submission: {}'.format(str(e))
+            print('Failed to load submittion',str(e))
         if hasattr(self, '_team') and self._team is not None:
             self.agent_type = self._team.agent_type
 
@@ -187,15 +189,15 @@ class Match:
         RaceConfig = self._pystk.RaceConfig
 
         logging.info('Creating teams')
-        print('Creating teams')
+        #print('Creating teams')
         # Start a new match
         t1_cars = self._g(self._r(team1.new_match)(0, num_player)) or ['tux']
         t2_cars = self._g(self._r(team2.new_match)(1, num_player)) or ['tux']
-        print(team2.new_match)
-        print('t2_cars',t2_cars)
+        #print('team2',team2)
+        #print('t2_cars',t2_cars)
         t1_type, *_ = self._g(self._r(team1.info)())
         t2_type, *_ = self._g(self._r(team2.info)())
-        print('t2_type',t2_type)
+        #print('t2_type',t2_type)
         if t1_type == 'image' or t2_type == 'image':
             assert self._use_graphics, 'Need to use_graphics for image agents.'
 
@@ -203,7 +205,7 @@ class Match:
         t1_can_act, t2_can_act = self._check(team1, team2, 'new_match', 0, timeout)
         # Setup the race config
         logging.info('Setting up race')
-        print('setting up race')
+        #print('setting up race')
         race_config = RaceConfig(track=TRACK_NAME, mode=RaceConfig.RaceMode.SOCCER, num_kart=2 * num_player)
         race_config.players.pop()
         for i in range(num_player):
