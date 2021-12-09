@@ -21,11 +21,18 @@ class Team:
         r = planner.Planner()
         r.load_state_dict(load(path.join(path.dirname(path.abspath(__file__)), 'planner.th'), map_location='cpu'))
         self.model = r
-        self.prev_location = None
-        self.prev_velocity = None
+        self.p0_prev_location = None
+        self.p1_prev_location = None
+        self.p0_prev_vel_magnitude = None
+        self.p1_prev_vel_magnitude = None
+        self.p0_prev_puck_onscreen = True
+        self.p1_prev_puck_onscreen = True
+        self.p0_prev_puck_loc = None
+        self.p0_prev_puck_loc = None
         self.own_goal = None
         self.target_goal = None
         self.goal_width = 10.
+        self.global_step = 0
         
     def new_match(self, team: int, num_players: int) -> list:
         """
@@ -89,52 +96,58 @@ class Team:
                  rescue:       bool (optional. no clue where you will end up though.)
                  steer:        float -1..1 steering angle
         """
-        '''
-        img0 = self.transform(player_image[0])
-        img1 = self.transform(player_image[1])
-        img0 = img0[None,:]
-        img1 = img1[None,:]
-        '''
+        # set constants for calculations
+        steer_gain=2
+        skid_thresh=0.5
+        target_vel=25
+        p0_brake = False
+        p0_nitro = False
+        p1_nitro = False
+        puck_onscreen_threshold = 0.55
+        print('global step:',self.global_step)
+
         # transform images to tensor for input to model
         img_stack = self.transform_images(player_image[0],player_image[1])
         pred_puck, loc = self.model(img_stack)
 
         # get current values for puck, dist, location, velocity
-        p0_puck_onscreen = pred_puck[0,0].detach()
-        p1_puck_onscreen = pred_puck[1,0].detach()
+        p0_puck_onscreen = pred_puck[0,0].detach().numpy()
+        p1_puck_onscreen = pred_puck[1,0].detach().numpy()
 
-        p0_puck_dist = pred_puck[0,1].detach()
-        p1_puck_dist = pred_puck[1,1].detach()
+        p0_puck_dist = pred_puck[0,1].detach().numpy()
+        p1_puck_dist = pred_puck[1,1].detach().numpy()
 
-        p0_puck_loc = loc[0,:].detach()
-        p1_puck_loc = loc[1,:].detach()
+        p0_puck_loc = loc[0,:].detach().numpy()
+        p1_puck_loc = loc[1,:].detach().numpy()
 
         p0_current_vel = player_state[0].get('kart').get('velocity')
         p1_current_vel = player_state[1].get('kart').get('velocity')
-        p0_velocity_magnitude = np.linalg.norm([p0_current_vel[0],p0_current_vel[2]])
-        p1_velocity_magnitude = np.linalg.norm([p1_current_vel[0],p1_current_vel[2]])
+        p0_current_vel_magnitude = np.linalg.norm([p0_current_vel[0],p0_current_vel[2]])
+        p1_current_vel_magnitude = np.linalg.norm([p1_current_vel[0],p1_current_vel[2]])
 
         p0_current_location = player_state[0].get('kart').get('front')
         p1_current_location = player_state[1].get('kart').get('front')
 
-        # set constants for calculations
-        steer_gain=2
-        skid_thresh=0.5
-        target_vel=25
-        brake = False
-        nitro = False
-        loc_0 = loc[0].detach().numpy()
-        steer_angle = steer_gain * loc_0[0]
+        
 
-        acceleration = 1.0 if velocity < target_vel else 0.0
+        p0_steer_angle = steer_gain * p0_puck_loc[0]
 
-        steer = np.clip(steer_angle * steer_gain, -1, 1)
+        #TODO: set acceleration based on proximity to puck??
+        p0_accel = 1.0 if p0_current_vel_magnitude < target_vel else 0.0
+        if p0_puck_onscreen > puck_onscreen_threshold:
+            if p0_puck_dist < 25:
+                print('puck closer than 20, slow down', p0_puck_dist)
+                p0_accel = p0_accel * .69
+
+
+        p0_steer = np.clip(p0_steer_angle * steer_gain, -1, 1)
+        '''
         # Compute skidding
-        if abs(steer_angle) > skid_thresh:
-            drift = True
+        if abs(p0_steer_angle) > skid_thresh:
+            p0_drift = True
         else:
-            drift = False
-
+            p0_drift = False
+        '''
         # what to do if kart is stuck (velocity ~0, location ~ same as prev)
 
         # determine which goal is mine (based on team)
@@ -143,20 +156,27 @@ class Team:
         # e.g. sit in front of own goal (determine using coordinates)
         # only act if puck gets close
         # hit it away then back up to desired location
-
-        print('puck',puck.detach(),'at distance',dist.detach())
-        print('kart location',current_location, 'velocity',current_vel)
-        if puck.detach()<0.5:
-            print('puck out of frame')
-            # I think the puck is out of frame
-            brake = True
-            acceleration = 0
-            #steer = 0.420
+        
+        print('puck_onscreen',p0_puck_onscreen,'loc',p0_puck_loc,'dist',p0_puck_dist)
+        print('kart location',p0_current_location)
+        print('kart velocity',p0_current_vel_magnitude)
+        if p0_puck_onscreen<puck_onscreen_threshold:
+            print('puck out of frame, backing up')
+            p0_brake = True
+            p0_accel = 0
+            #p0_steer = 0.420
         else:
             print('puck in frame')
-            if np.absolute(loc_0[0])<0.1 and np.absolute(loc_0[1])<0.1:
-                nitro = True
-        self.prev_location = current_location
-        self.prev_velocity = current_vel
-        return [dict(acceleration=acceleration, brake=brake, drift=drift,
-                     nitro=nitro, steer=steer)] * self.num_players
+            if np.absolute(p0_puck_loc[0])<0.02 and (np.absolute(p0_puck_loc[1])-0.025)<0.05:
+                #The puck is on screen and in front of me?
+                print('I think I have the puck')
+                p0_nitro = True
+        # store current state values
+        self.p0_prev_location = p0_current_location
+        self.p0_prev_vel_magnitude = p0_current_vel_magnitude
+        actions = [dict(acceleration=p0_accel, brake=p0_brake, steer=p0_steer),
+                   dict(acceleration=0, steer=0)]
+        print('passing action p0',actions[0])
+        self.global_step+=1
+        #print('actions to output',actions)
+        return actions

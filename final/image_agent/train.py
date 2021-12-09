@@ -120,7 +120,7 @@ def train(args):
         if avg_loc_loss < lowest_loss_val:
             save_model(model)
             lowest_loss_val = avg_loc_loss
-
+    ''''
     #save_model(model)
     # An example input you would normally provide to your model's forward() method.
     example = torch.rand(1, 3, 300, 400)
@@ -128,7 +128,8 @@ def train(args):
     # Use torch.jit.trace to generate a torch.jit.ScriptModule via tracing.
     traced_script_module = torch.jit.trace(model, example)
     traced_script_module.save("image_agent.pt")
-
+    '''
+    
 def log(logger, img, loc, pred_loc, puck, dist, pred_puck, global_step):
     import matplotlib.pyplot as plt
     import torchvision.transforms.functional as TF

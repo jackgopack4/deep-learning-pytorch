@@ -13,7 +13,10 @@ def to_image(x, proj, view): #puck coordinate
 
 def puck_in_frame(instance):
     i = instance >> 24
-    return 8 in i
+    count = 0
+    if(8 in i):
+        count = np.count_nonzero(i == 8)
+    return 8 in i, count
 
 
 def video_grid(team1_images, team2_images, team1_state='', team2_state=''):
@@ -194,9 +197,11 @@ class StateRecorder(BaseRecorder):
             team1_projectile = []
             team2_projectile = []
             for inst in team1_instances:
-                team1_projectile.append(puck_in_frame(inst))
+                puck_onscreen, pixel_count = puck_in_frame(inst)
+                team1_projectile.append(puck_onscreen)
             for inst in team2_instances:
-                team2_projectile.append(puck_in_frame(inst))
+                puck_onscreen, pixel_count = puck_in_frame(inst)
+                team2_projectile.append(puck_onscreen)
             data['team1_projectile'] = team1_projectile
             data['team2_projectile'] = team2_projectile
         dump(dict(data), self._f)
