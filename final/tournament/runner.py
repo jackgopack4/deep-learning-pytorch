@@ -74,6 +74,7 @@ class TeamRunner:
                 if assignment is None:
                     self._error = 'Failed to load submission.'
                 else:
+                    print('creating new Team() object')
                     self._team = assignment.Team()
             else:
                 self._team = team_or_dir
@@ -187,14 +188,14 @@ class Match:
         RaceConfig = self._pystk.RaceConfig
 
         logging.info('Creating teams')
-
+        print('Creating teams')
         # Start a new match
         t1_cars = self._g(self._r(team1.new_match)(0, num_player)) or ['tux']
         t2_cars = self._g(self._r(team2.new_match)(1, num_player)) or ['tux']
-
+        print('t2_cars',t2_cars)
         t1_type, *_ = self._g(self._r(team1.info)())
         t2_type, *_ = self._g(self._r(team2.info)())
-
+        print('t2_type',t2_type)
         if t1_type == 'image' or t2_type == 'image':
             assert self._use_graphics, 'Need to use_graphics for image agents.'
 
@@ -203,7 +204,7 @@ class Match:
 
         # Setup the race config
         logging.info('Setting up race')
-
+        print('setting up race')
         race_config = RaceConfig(track=TRACK_NAME, mode=RaceConfig.RaceMode.SOCCER, num_kart=2 * num_player)
         race_config.players.pop()
         for i in range(num_player):

@@ -1,11 +1,15 @@
 import pystk
 import numpy as np
+from image_agent import planner
+import path
 
 def load_model():
+    print('called load_model')
     from torch import load
     from os import path
     r = Planner()
     r.load_state_dict(load(path.join(path.dirname(path.abspath(__file__)), 'planner.th'), map_location='cpu'))
+    print('loading model', r)
     return r
 
 
@@ -18,9 +22,9 @@ class Team:
           TODO: Load your agent here. Load network parameters, and other parts of our model
           We will call this function with default arguments only
         """
-
+        print('called init for imageagent')
         self.team = None
-        self.num_players = None
+        self.num_players = 2
 
         self.model = load_model().eval()
 
@@ -102,7 +106,7 @@ class Team:
             # I think the puck is out of frame
             brake = True
             acceleration = 0
-            steer = 0.420
+            #steer = 0.420
         else:
             if np.absolute(loc[0])<0.1 && np.absolute(loc[0])<0.1:
                 nitro = True
