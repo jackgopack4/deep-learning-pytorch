@@ -97,13 +97,13 @@ class Team:
                  steer:        float -1..1 steering angle
         """
         # set constants for calculations
-        steer_gain=2
+        steer_gain=2.25
         skid_thresh=0.5
         target_vel=25
         p0_brake = False
         p0_nitro = False
         p1_nitro = False
-        puck_onscreen_threshold = 0.55
+        puck_onscreen_threshold = 7.5
         print('global step:',self.global_step)
 
         # transform images to tensor for input to model
@@ -135,7 +135,7 @@ class Team:
         #TODO: set acceleration based on proximity to puck??
         p0_accel = 1.0 if p0_current_vel_magnitude < target_vel else 0.0
         if p0_puck_onscreen > puck_onscreen_threshold:
-            if p0_puck_dist < 25:
+            if p0_puck_dist < .05 and p0_puck_dist >= 0:
                 print('puck closer than 20, slow down', p0_puck_dist)
                 p0_accel = p0_accel * .69
 
@@ -148,8 +148,7 @@ class Team:
         else:
             p0_drift = False
         '''
-        # what to do if kart is stuck (velocity ~0, location ~ same as prev)
-
+            
         # determine which goal is mine (based on team)
 
         # make one player defensive
@@ -164,13 +163,19 @@ class Team:
             print('puck out of frame, backing up')
             p0_brake = True
             p0_accel = 0
-            #p0_steer = 0.420
+            p0_steer = 1
         else:
             print('puck in frame')
+            # what to do if kart is stuck (velocity ~0, location ~ same as prev)
+            if self.p0_prev_location is not None and np.abs(self.p0_prev_location[0] - p0_current_location[0]) < 1e-4 and np.abs(self.p0_prev_location[1] - p0_current_location[1]) < 1e-4 and np.abs(self.p0_prev_vel_magnitude) < 1e-4 and np.abs(p0_current_vel_magnitude)   < 1e-4:
+                p0_brake = True
+                p0_accel = 0
+                p0_steer = 1
             if np.absolute(p0_puck_loc[0])<0.02 and (np.absolute(p0_puck_loc[1])-0.025)<0.05:
                 #The puck is on screen and in front of me?
                 print('I think I have the puck')
                 p0_nitro = True
+        
         # store current state values
         self.p0_prev_location = p0_current_location
         self.p0_prev_vel_magnitude = p0_current_vel_magnitude

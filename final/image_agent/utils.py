@@ -4,7 +4,7 @@ import pystk
 import torch
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms.functional as TF
-from torchvision.transforms import ToTensor
+from torchvision.transforms import ToTensor, Normalize
 from PIL import Image
 from . import dense_transforms
 from tournament import utils
@@ -36,6 +36,7 @@ class SuperTuxDataset(Dataset):
         self.locs = []
         self.data = []
         self.distances = []
+        self.dist_max = 1.0
         from operator import sub 
         with(open(dataset_path, 'rb')) as f:
             for d in load_recording(f):
@@ -48,29 +49,32 @@ class SuperTuxDataset(Dataset):
                 for i in range(0,len(team1_images)):
                     #team1
                     self.images.append(team1_images[i])
-                    puck = d.get('team1_projectile')[i]
-                    self.pucks.append(float(puck))
+                    puck = float(d.get('team1_projectile')[i])
+                    self.pucks.append(puck)
                     team1state = d.get('team1_state')
                     proj = team1state[i].get('camera').get('projection').T
                     view = team1state[i].get('camera').get('view').T
                     self.locs.append(self._to_image(ball_loc,proj,view))
                     kart_front = team1state[i].get('kart').get('front')
                     diff = [b - k for b,k in zip(ball_loc,kart_front)]
-                    dist = float(np.linalg.norm(diff))
+                    dist = float(np.linalg.norm(diff))* ((puck-0.5)*2.)
                     self.distances.append(dist)
                     #team2
                     self.images.append(team2_images[i])
-                    puck = d.get('team2_projectile')[i]
-                    self.pucks.append(float(puck))
+                    puck = float(d.get('team2_projectile')[i])
+                    self.pucks.append(puck)
                     team2state = d.get('team2_state')
                     proj = team2state[i].get('camera').get('projection').T
                     view = team2state[i].get('camera').get('view').T
                     self.locs.append(self._to_image(ball_loc,proj,view))
                     kart_front = team2state[i].get('kart').get('front')
                     diff = [b - k for b,k in zip(ball_loc,kart_front)]
-                    dist = float(np.linalg.norm(diff))
+                    dist = float(np.linalg.norm(diff))* ((puck-0.5)*2.)
                     self.distances.append(dist)
         self.transform = transform
+        self.dist_max = np.abs(self.distances).max()
+        print('max dist =',self.dist_max)
+        self.dist_norm = np.linalg.norm(np.array(self.distances))
 
     def __len__(self):
         return len(self.images)
@@ -87,6 +91,7 @@ class SuperTuxDataset(Dataset):
         if self.transform:
             img = Image.fromarray(img)
             img = self.transform(img)
+            dist = dist / self.dist_max
         data = (img[0], torch.tensor(puck), torch.tensor(loc), torch.tensor(dist))
         return data
 

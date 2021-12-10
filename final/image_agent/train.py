@@ -27,15 +27,15 @@ def train(args):
         model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), 'planner.th')))
     
     puck_loss = torch.nn.BCEWithLogitsLoss()
-    loc_loss = torch.nn.L1Loss()
+    loc_loss  = torch.nn.L1Loss()
     dist_loss = torch.nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.25)
     import inspect
     transform = eval(args.transform, {k: v for k, v in inspect.getmembers(dense_transforms) if inspect.isclass(v)})
 
-    train_data = load_data('train.pkl', transform=transform, num_workers=args.num_workers)
-    valid_data = load_data('valid.pkl', transform=dense_transforms.ToTensor(),num_workers=args.num_workers)
+    train_data = load_data('train2.pkl', transform=transform, num_workers=args.num_workers)
+    valid_data = load_data('valid2.pkl', transform=dense_transforms.ToTensor(),num_workers=args.num_workers)
     global_step = 0
     lowest_loss_val = 2
     for epoch in range(args.num_epoch):
@@ -53,7 +53,7 @@ def train(args):
             puck_loss_val = puck_loss(pred_puck[:,0], puck)
             loc_loss_val = loc_loss(pred_loc, loc)
             dist_loss_val = dist_loss(pred_puck[:,1],dist)
-            loss_val = puck_loss_val + dist_loss_val*args.loss_weight*5 + loc_loss_val * args.loss_weight
+            loss_val = puck_loss_val + dist_loss_val + loc_loss_val # * args.loss_weight
 
             if train_logger is not None:
                 train_logger.add_scalar('puck_loss', puck_loss_val, global_step)
@@ -94,7 +94,7 @@ def train(args):
             puck_loss_val = puck_loss(pred_puck[:,0], puck)
             loc_loss_val = loc_loss(pred_loc, loc)
             dist_loss_val = dist_loss(pred_puck[:,1], dist)
-            loss_val = puck_loss_val + dist_loss_val*args.loss_weight*5 + loc_loss_val * args.loss_weight
+            loss_val = puck_loss_val + dist_loss_val + loc_loss_val # * args.loss_weight
             
             if valid_logger is not None:
                 valid_logger.add_scalar('puck_loss', puck_loss_val, global_step)
