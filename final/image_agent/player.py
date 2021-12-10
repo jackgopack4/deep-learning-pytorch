@@ -61,6 +61,10 @@ class Team:
         i1 = self.transform(image_1)
         return torch.stack([i0,i1],0)
 
+    def calc_yaw(self, q):
+        yaw = np.arctan2(2.0*(q[2]*q[3] + q[0]*q[1]), q[0]*q[0] - q[1]*q[1] - q[2]*q[2] + q[3]*q[3])
+        return np.degrees(yaw)
+
     def act(self, player_state, player_image):
         """
         This function is called once per timestep. You're given a list of player_states and images.
@@ -98,13 +102,22 @@ class Team:
         """
         # set constants for calculations
         steer_gain=2.25
-        skid_thresh=0.5
+        skid_thresh=0.8
         target_vel=25
         p0_brake = False
         p0_nitro = False
         p1_nitro = False
         puck_onscreen_threshold = 7.5
-        print('global step:',self.global_step)
+        print('global step:',self.global_step,'team',self.team)
+
+        p0_quaternion = player_state[0].get('kart').get('rotation')
+        yaw = self.calc_yaw(p0_quaternion)
+        #print('yaw angle',yaw, 'degrees')
+
+        p0_kart_front = torch.tensor(player_state.get('kart').get('front'), dtype=torch.float32)[[0, 2]]
+        p0_kart_center = torch.tensor(player_state.get('kart').get('location'), dtype=torch.float32)[[0, 2]]
+        p0_kart_direction = (p0_kart_p0_front-kart_center) / torch.norm(kart_front-kart_center)
+
 
         # transform images to tensor for input to model
         img_stack = self.transform_images(player_image[0],player_image[1])
@@ -131,16 +144,19 @@ class Team:
         
 
         p0_steer_angle = steer_gain * p0_puck_loc[0]
+        p0_steer = p0_steer_angle * steer_gain
 
         #TODO: set acceleration based on proximity to puck??
         p0_accel = 1.0 if p0_current_vel_magnitude < target_vel else 0.0
         if p0_puck_onscreen > puck_onscreen_threshold:
             if p0_puck_dist < .05 and p0_puck_dist >= 0:
-                print('puck closer than 20, slow down', p0_puck_dist)
+                #print('puck closer than 20, slow down', p0_puck_dist)
                 p0_accel = p0_accel * .69
+                # attempt to adjust slightly to get behind puck
+                print('adding small amount to steer value close to puck')
+                p0_steer = p0_steer + np.sign(p0_steer)*0.025
 
 
-        p0_steer = np.clip(p0_steer_angle * steer_gain, -1, 1)
         '''
         # Compute skidding
         if abs(p0_steer_angle) > skid_thresh:
@@ -156,16 +172,16 @@ class Team:
         # only act if puck gets close
         # hit it away then back up to desired location
         
-        print('puck_onscreen',p0_puck_onscreen,'loc',p0_puck_loc,'dist',p0_puck_dist)
-        print('kart location',p0_current_location)
-        print('kart velocity',p0_current_vel_magnitude)
+        #print('puck_onscreen',p0_puck_onscreen,'loc',p0_puck_loc,'dist',p0_puck_dist)
+        #print('kart location',p0_current_location)
+        #print('kart velocity',p0_current_vel_magnitude)
         if p0_puck_onscreen<puck_onscreen_threshold:
-            print('puck out of frame, backing up')
+            #print('puck out of frame, backing up')
             p0_brake = True
             p0_accel = 0
             p0_steer = 1
         else:
-            print('puck in frame')
+            #print('puck in frame')
             # what to do if kart is stuck (velocity ~0, location ~ same as prev)
             if self.p0_prev_location is not None and np.abs(self.p0_prev_location[0] - p0_current_location[0]) < 1e-4 and np.abs(self.p0_prev_location[1] - p0_current_location[1]) < 1e-4 and np.abs(self.p0_prev_vel_magnitude) < 1e-4 and np.abs(p0_current_vel_magnitude)   < 1e-4:
                 p0_brake = True
@@ -175,13 +191,14 @@ class Team:
                 #The puck is on screen and in front of me?
                 print('I think I have the puck')
                 p0_nitro = True
-        
+        #clip steer value to [-1,1]
+        p0_steer = np.clip(p0_steer,-1,1)
         # store current state values
         self.p0_prev_location = p0_current_location
         self.p0_prev_vel_magnitude = p0_current_vel_magnitude
         actions = [dict(acceleration=p0_accel, brake=p0_brake, steer=p0_steer),
                    dict(acceleration=0, steer=0)]
-        print('passing action p0',actions[0])
+        #print('passing action p0',actions[0])
         self.global_step+=1
         #print('actions to output',actions)
         return actions
