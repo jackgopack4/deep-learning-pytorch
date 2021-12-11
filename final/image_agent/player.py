@@ -53,7 +53,7 @@ class Team:
             self.target_goal = [0., -64.]
         else: 
             self.own_goal = [0., -64.]
-            self.target_goal = [0., 64]
+            self.target_goal = [0., 64.]
         return ['tux'] * num_players
 
     def transform_images(self, image_0, image_1):
@@ -64,6 +64,25 @@ class Team:
     def calc_yaw(self, q):
         yaw = np.arctan2(2.0*(q[2]*q[3] + q[0]*q[1]), q[0]*q[0] - q[1]*q[1] - q[2]*q[2] + q[3]*q[3])
         return np.degrees(yaw)
+
+    def check_quadrant_vincent_16(self, location):
+        # based on location, determine if safe to drive straight to goal
+        # if True, go straight to goal when I have puck
+        if np.abs(location[0]) > 10:
+            #outer sides
+            if np.sign(location[1]) == np.sign(self.target_goal[1]):
+                # in opponent's half
+                if np.abs(location[1]) > 45:
+                    #outer quadrant
+                    return False
+        return True
+
+    def check_defensive_box(self, location):
+        #if defensive player in his box, return True
+        if np.abs(location[0]) <= 10:
+            if np.sign(location[1]) == np.sign(self.own_goal[1]) and np.abs(location[1]) > 45:
+                return True
+        return False
 
     def act(self, player_state, player_image):
         """
@@ -107,17 +126,30 @@ class Team:
         p0_brake = False
         p0_nitro = False
         p1_nitro = False
-        puck_onscreen_threshold = 7.5
+        puck_onscreen_threshold = 6.1
         print('global step:',self.global_step,'team',self.team)
 
         p0_quaternion = player_state[0].get('kart').get('rotation')
-        yaw = self.calc_yaw(p0_quaternion)
+        p1_quaternion = player_state[1].get('kart').get('rotation')
+        #print('got quaternion')
+        p0_yaw = self.calc_yaw(p0_quaternion)
+        p1_yaw = self.calc_yaw(p1_quaternion)
         #print('yaw angle',yaw, 'degrees')
 
-        p0_kart_front = torch.tensor(player_state.get('kart').get('front'), dtype=torch.float32)[[0, 2]]
-        p0_kart_center = torch.tensor(player_state.get('kart').get('location'), dtype=torch.float32)[[0, 2]]
-        p0_kart_direction = (p0_kart_p0_front-kart_center) / torch.norm(kart_front-kart_center)
+        p0_kart_front = torch.tensor(player_state[0].get('kart').get('front'), dtype=torch.float32)[[0, 2]]
+        p1_kart_front = torch.tensor(player_state[1].get('kart').get('front'), dtype=torch.float32)[[0, 2]]
+        p0_kart_center = torch.tensor(player_state[0].get('kart').get('location'), dtype=torch.float32)[[0, 2]]
+        p1_kart_center = torch.tensor(player_state[1].get('kart').get('location'), dtype=torch.float32)[[0, 2]]
+        p0_kart_direction = ((p0_kart_front-p0_kart_center) / torch.norm(p0_kart_front-p0_kart_center)).numpy()
+        p1_kart_direction = ((p1_kart_front-p1_kart_center) / torch.norm(p1_kart_front-p1_kart_center)).numpy()
+        p0_goal_direction = ((torch.tensor(self.target_goal) - p0_kart_front) / torch.norm(torch.tensor(self.target_goal) - p0_kart_front)).numpy()
+        
+        print('p0 kart direction',p0_kart_direction)
+        print('p0 goal direction',p0_goal_direction)
+        #print('yaw',yaw)
 
+        p0_in_attack_quadrants = self.check_quadrant_vincent_16(p0_kart_front)
+        p1_in_defense_quadrant = self.check_defensive_box(p1_kart_front)
 
         # transform images to tensor for input to model
         img_stack = self.transform_images(player_image[0],player_image[1])
@@ -125,6 +157,7 @@ class Team:
 
         # get current values for puck, dist, location, velocity
         p0_puck_onscreen = pred_puck[0,0].detach().numpy()
+        print('puck onscreen value',p0_puck_onscreen)
         p1_puck_onscreen = pred_puck[1,0].detach().numpy()
 
         p0_puck_dist = pred_puck[0,1].detach().numpy()
@@ -142,30 +175,12 @@ class Team:
         p1_current_location = player_state[1].get('kart').get('front')
 
         
-
+        # default controller values
         p0_steer_angle = steer_gain * p0_puck_loc[0]
         p0_steer = p0_steer_angle * steer_gain
-
-        #TODO: set acceleration based on proximity to puck??
         p0_accel = 1.0 if p0_current_vel_magnitude < target_vel else 0.0
-        if p0_puck_onscreen > puck_onscreen_threshold:
-            if p0_puck_dist < .05 and p0_puck_dist >= 0:
-                #print('puck closer than 20, slow down', p0_puck_dist)
-                p0_accel = p0_accel * .69
-                # attempt to adjust slightly to get behind puck
-                print('adding small amount to steer value close to puck')
-                p0_steer = p0_steer + np.sign(p0_steer)*0.025
-
-
-        '''
-        # Compute skidding
-        if abs(p0_steer_angle) > skid_thresh:
-            p0_drift = True
-        else:
-            p0_drift = False
-        '''
-            
-        # determine which goal is mine (based on team)
+                    
+        print('p0 puck loc',p0_puck_loc,'p0 puck onscreen',p0_puck_onscreen)
 
         # make one player defensive
         # e.g. sit in front of own goal (determine using coordinates)
@@ -176,21 +191,42 @@ class Team:
         #print('kart location',p0_current_location)
         #print('kart velocity',p0_current_vel_magnitude)
         if p0_puck_onscreen<puck_onscreen_threshold:
-            #print('puck out of frame, backing up')
-            p0_brake = True
-            p0_accel = 0
-            p0_steer = 1
+            if np.sign(self.target_goal[1]) == np.sign(p0_current_location[1]):
+                print('on side of target goal but puck out of sight')
+                p0_brake = True
+                p0_accel = 0
+                p0_steer = 1
+            else:
+                print('own own side but puck out of sight')
+                # on own side
+                p0_brake = False
+                p0_accel = 0.5
+                p0_steer = -1
+            
         else:
             #print('puck in frame')
             # what to do if kart is stuck (velocity ~0, location ~ same as prev)
             if self.p0_prev_location is not None and np.abs(self.p0_prev_location[0] - p0_current_location[0]) < 1e-4 and np.abs(self.p0_prev_location[1] - p0_current_location[1]) < 1e-4 and np.abs(self.p0_prev_vel_magnitude) < 1e-4 and np.abs(p0_current_vel_magnitude)   < 1e-4:
+                print('I am stuck, backing up')
                 p0_brake = True
                 p0_accel = 0
                 p0_steer = 1
-            if np.absolute(p0_puck_loc[0])<0.02 and (np.absolute(p0_puck_loc[1])-0.025)<0.05:
+            if np.abs(p0_puck_loc[0])<0.02 and (np.abs(p0_puck_loc[1])+0.025)<0.05:
                 #The puck is on screen and in front of me?
                 print('I think I have the puck')
                 p0_nitro = True
+                p0_accel = 1
+            else:
+                if np.abs(p0_puck_loc[0]) > 0.02 and p0_puck_dist <= 0.02 and p0_puck_loc[1] > -0.075:
+                    print('puck off to the side')
+                    p0_accel = 0
+                    p0_brake = True
+                    p0_steer = - np.sign(p0_puck_loc[0])
+            if p0_puck_dist < .1 and p0_puck_dist >= 0.05:
+                # attempt to adjust slightly to get behind puck
+                print('adding small amount to steer value close to puck')
+                p0_steer = p0_steer + np.sign(p0_steer)*0.4
+
         #clip steer value to [-1,1]
         p0_steer = np.clip(p0_steer,-1,1)
         # store current state values
