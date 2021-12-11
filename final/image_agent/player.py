@@ -21,18 +21,18 @@ class Team:
         r = planner.Planner()
         r.load_state_dict(load(path.join(path.dirname(path.abspath(__file__)), 'planner.th'), map_location='cpu'))
         self.model = r
-        self.p0_prev_action = None
-        self.p1_prev_action = None
-        self.p0_prev_location = None
-        self.p1_prev_location = None
-        self.p0_prev_vel_magnitude = None
-        self.p1_prev_vel_magnitude = None
-        self.p0_prev_vel = None
-        self.p1_prev_vel = None
-        self.p0_prev_puck_onscreen = True
-        self.p1_prev_puck_onscreen = True
-        self.p0_prev_puck_loc = None
-        self.p0_prev_puck_loc = None
+        self.p0_prev_actions = []
+        self.p1_prev_actions = []
+        self.p0_prev_locations = []
+        self.p1_prev_locations = []
+        self.p0_prev_vel_magnitudes = []
+        self.p1_prev_vel_magnitudes = []
+        self.p0_prev_vels = []
+        self.p1_prev_vels = []
+        self.p0_prev_puck_onscreens = []
+        self.p1_prev_puck_onscreens = []
+        self.p0_prev_puck_locs = []
+        self.p0_prev_puck_locs = []
         self.own_goal = None
         self.target_goal = None
         self.goal_width = 10.
@@ -52,7 +52,7 @@ class Team:
            TODO: feel free to edit or delete any of the code below
         """
         self.team, self.num_players = team, num_players
-        if self.team == 0:
+        if self.team == 1:
             self.own_goal = [0., 64.]
             self.target_goal = [0., -64.]
         else: 
@@ -72,6 +72,20 @@ class Team:
         yaw = np.arctan2(2.0*(q[2]*q[3] + q[0]*q[1]), q[0]*q[0] - q[1]*q[1] - q[2]*q[2] + q[3]*q[3])
         return np.degrees(yaw)
 
+    def avoid_crash(self,location, direction):
+        xloc = location[0]
+        yloc = location[1]
+        xdir = direction[0]
+        ydir = direction[1]
+        if (np.sign(xloc) != np.sign(xdir)) and (np.sign(yloc) == np.sign(ydir)):
+            return np.sign(xdir * yloc)
+        if (np.sign(xloc) == np.sign(xdir)) and (np.sign(yloc) == np.sign(ydir)):
+            return -np.sign(xdir * yloc)
+        if (np.sign(xloc) == np.sign(xdir)) and (np.sign(yloc) != np.sign(ydir)):
+            return np.sign(xdir * yloc)
+        else:
+            return 0.0
+
     def check_quadrant_vincent_16(self, location):
         # based on location, determine if safe to drive straight to goal
         # if True, go straight to goal when I have puck
@@ -90,6 +104,13 @@ class Team:
             if np.sign(location[1]) == np.sign(self.own_goal[1]) and np.abs(location[1]) > 45:
                 return True
         return False
+    def calc_angle(self, direction, location):
+        #calculate turn direction (positive = right, negative = left) from current
+        #direction vector to a specified point (usually origin?)
+        target = -location
+        dir_angle = np.arctan2(direction[1],direction[0])
+        tar_angle = np.arctan2(target[1],target[0])
+        return -np.sign(tar_angle - dir_angle)
 
     def act(self, player_state, player_image):
         """
@@ -133,14 +154,16 @@ class Team:
         p0_brake = False
         p0_nitro = False
         p1_nitro = False
-        puck_onscreen_threshold = 5
+        p0_rescue = False
+        puck_onscreen_threshold = 6.2
+        
         print('global step:',self.global_step,'team',self.team)
 
         p0_quaternion = player_state[0].get('kart').get('rotation')
         p1_quaternion = player_state[1].get('kart').get('rotation')
         #print('got quaternion')
-        p0_yaw = self.calc_yaw(p0_quaternion)
-        p1_yaw = self.calc_yaw(p1_quaternion)
+        #p0_yaw = self.calc_yaw(p0_quaternion)
+        #p1_yaw = self.calc_yaw(p1_quaternion)
         #print('yaw angle',yaw, 'degrees')
 
         p0_kart_front = torch.tensor(player_state[0].get('kart').get('front'), dtype=torch.float32)[[0, 2]]
@@ -195,61 +218,93 @@ class Team:
         #print('puck_onscreen',p0_puck_onscreen,'loc',p0_puck_loc,'dist',p0_puck_dist)
         #print('kart location',p0_current_location)
         #print('kart velocity',p0_current_vel_magnitude)
-        if p0_puck_onscreen<puck_onscreen_threshold: # and p0_puck_dist < 0.02:
+        if p0_puck_onscreen<puck_onscreen_threshold:
+            
             print('puck out of frame')
-            if np.sign(p0_kart_front[1]) == np.sign(p0_kart_direction[1]):
+            # idea: check if it was previously in frame, then turn toward that direction?
+            if np.sign(p0_kart_front[1]) == np.sign(p0_kart_direction[1]): #or np.sign(p0_kart_front[0]) == np.sign(p0_kart_direction[0]):
                 print('kart facing direction of location, back up')
                 p0_accel = 0
                 p0_brake = True
-                p0_steer = - np.sign(p0_current_location[0])
+                p0_steer = np.sign(p0_current_location[0])
             else:
                 print('kart facing opposite of location, go forward')
-                p0_accel = 1
+                p0_accel = 1.0 if p0_current_vel_magnitude < target_vel else 0.0
                 p0_brake = False
-                p0_steer = np.sign(p0_current_location[0])
+                p0_steer = -np.sign(p0_current_location[0])
+            
         else:
             print('puck in frame')
             p0_steer = p0_steer_angle * steer_gain
             p0_accel = 1.0 if p0_current_vel_magnitude < target_vel else 0.0
-            if np.abs(p0_puck_loc[0])<0.02 and (np.abs(p0_puck_loc[1])+0.025)<0.05:
+            if p0_puck_dist < .1 and p0_puck_dist >= 0.04:
+                # attempt to adjust slightly to get behind puck
+                #p0_steer = 1.2 * p0_steer
+                p0_accel = 0
+                print('adding small amount to steer value close to puck')
+                if np.sign(p0_goal_direction[1]) == np.sign(p0_kart_direction[1]):
+                    #heading toward target goal
+                    print('heading toward target goal?')
+                    if np.abs(p0_goal_direction[0] - p0_kart_direction[0]) > 0.01:
+                        # kart and goal x-value are not aligned yet
+                        print('facing target, adding value',  (p0_goal_direction[0] - p0_kart_direction[0]))
+                        p0_steer = p0_steer + (p0_goal_direction[0] - p0_kart_direction[0]) 
+                else:
+                    #heading toward own goal, go toward outside of puck instead
+                    print('steering away from own goal adding',(0.3 * (np.sign(self.own_goal[1]) * np.sign(p0_kart_front[0]))))
+                    p0_steer = p0_steer + 0.3 * (np.sign(self.own_goal[1]) * np.sign(p0_kart_front[0]))
+                    p0_accel = 1.0 if p0_current_vel_magnitude < target_vel else 0.0
+            elif (np.abs(p0_puck_loc[0])<0.1 and (np.abs(p0_puck_loc[1])+0.035)<0.1 and p0_puck_dist < 0.05):
                 #The puck is on screen and in front of me?
                 print('I think I have the puck')
                 if np.sign(p0_goal_direction[1]) == np.sign(p0_kart_direction[1]):
                     #heading toward target goal
+                    print('heading toward target goal?')
                     if np.abs(p0_goal_direction[0] - p0_kart_direction[0]) > 0.05:
                         # kart and goal x-value are not aligned yet
-                        p0_steer = p0_steer + 0.5 * (p0_goal_direction[0] - p0_kart_direction[0])
+                        print('facing target, adding value', (p0_goal_direction[0] - p0_kart_direction[0]))
+                        p0_steer = p0_steer + (p0_goal_direction[0] - p0_kart_direction[0]) 
                     else: 
+                        print('facing goal, let\'s go')
                         p0_nitro = True
                 else:
                     #heading toward own goal, go toward outside of puck instead
-                    p0_steer = p0_steer + 0.5 * (np.sign(self.own_goal[1]) * np.sign(p0_kart_front[0]))
-                p0_accel = 1
+                    print('steering away from own goal adding',(0.25 * (np.sign(self.own_goal[1]) * np.sign(p0_kart_front[0]))))
+                    p0_steer = p0_steer + 0.69 * (np.sign(self.own_goal[1]) * np.sign(p0_kart_front[0]))
+                    p0_accel = 1.0 if p0_current_vel_magnitude < target_vel else 0.0
             else:
                 if np.abs(p0_puck_loc[0]) > 0.02 and p0_puck_dist <= 0.02 and p0_puck_loc[1] > -0.075:
                     print('puck off to the side')
                     p0_accel = 0
                     p0_brake = True
                     p0_steer = - np.sign(p0_puck_loc[0])
-            if p0_puck_dist < .075 and p0_puck_dist >= 0.05:
-                # attempt to adjust slightly to get behind puck
-                print('adding small amount to steer value close to puck')
-                p0_steer = p0_steer + np.sign(p0_steer)*0.4
-        
+            
+
         # what to do if kart is stuck (velocity ~0, location ~ same as prev)
-        if self.global_step > 15 and ((np.abs(self.p0_prev_location[0] - p0_current_location[0]) < 0.02 and np.abs(self.p0_prev_location[1] - p0_current_location[1]) < 0.02) and (np.abs(self.p0_prev_vel_magnitude) < 0.5 and np.abs(p0_current_vel_magnitude)   < 0.5)) or np.abs(p0_kart_front[1]) > 64.0:
+        if self.global_step > 15 and ((np.abs(self.p0_prev_locations[self.global_step-1][0] - p0_current_location[0]) < 0.02 and np.abs(self.p0_prev_locations[self.global_step-1][1] - p0_current_location[1]) < 0.02) and (np.abs(self.p0_prev_vel_magnitudes[self.global_step-1]) < 0.5 and np.abs(p0_current_vel_magnitude)   < 0.5)) or np.abs(p0_kart_front[1]) > 64.0:
+            print('i\'m stuck')
             # if up against wall and facing away from wall, move forward?
             if np.sign(p0_kart_front[1]) == np.sign(p0_kart_direction[1]):
                 print('kart facing direction of location, back up')
                 p0_accel = 0
                 p0_brake = True
-                p0_steer = - np.sign(p0_current_location[0])
+                p0_steer = np.sign(p0_current_location[0])
             else:
                 print('kart facing opposite of location, go forward')
                 p0_accel = 1
                 p0_brake = False
-                p0_steer = np.sign(p0_current_location[0])
+                p0_steer = -np.sign(p0_current_location[0])
         '''
+        #maybe let's avoid crashing into wall altogether
+        # check if |x| > 38, |y| > 55
+        # if so, compare x_loc to x_dir and y_loc to y_dir
+        
+        if (np.abs(p0_kart_front[0]) > 38.) or (np.abs(p0_kart_front[1]) > 55.):
+            print('executing avoid crash function')
+            p0_steer_addition = self.avoid_crash(p0_kart_front,p0_kart_direction)
+            p0_steer = p0_steer_addition
+            p0_accel = 1
+        
         if np.abs(p0_kart_front[1]) > 64.0:
             print('stuck in goal')
             if np.sign(p0_kart_front[1]) == np.sign(p0_kart_direction[1]):
@@ -266,22 +321,22 @@ class Team:
         #clip steer value to [-1,1]
         p0_steer = np.clip(p0_steer,-1,1)
         # store current state values
-        actions = [dict(acceleration=p0_accel, brake=p0_brake, steer=p0_steer, nitro=p0_nitro),
+        actions = [dict(acceleration=p0_accel, brake=p0_brake, steer=p0_steer, nitro=p0_nitro,rescue=p0_rescue),
                    dict(acceleration=0, steer=0)]
         # update memory values
-        self.p0_prev_location = p0_current_location
-        self.p1_prev_location = p1_current_location
-        self.p0_prev_vel_magnitude = p0_current_vel_magnitude
-        self.p1_prev_vel_magnitude = p1_current_vel_magnitude
-        self.p0_prev_vel = p0_current_vel
-        self.p0_prev_action = actions[0]
-        self.p1_prev_action = actions[1]
-        self.p0_prev_vel = p0_current_vel
-        self.p1_prev_vel = p1_current_vel
-        self.p0_prev_puck_onscreen = p0_puck_onscreen
-        self.p1_prev_puck_onscreen = p1_puck_onscreen
-        self.p0_prev_puck_loc = p0_puck_loc
-        self.p0_prev_puck_loc = p1_puck_loc
+        self.p0_prev_locations.append(p0_current_location)
+        self.p1_prev_locations.append(p1_current_location)
+        self.p0_prev_vel_magnitudes.append(p0_current_vel_magnitude)
+        self.p1_prev_vel_magnitudes.append(p1_current_vel_magnitude)
+        self.p0_prev_vels.append(p0_current_vel)
+        self.p0_prev_actions.append(actions[0])
+        self.p1_prev_actions.append(actions[1])
+        self.p0_prev_vels.append(p0_current_vel)
+        self.p1_prev_vels.append(p1_current_vel)
+        self.p0_prev_puck_onscreens.append(p0_puck_onscreen)
+        self.p1_prev_puck_onscreens.append(p1_puck_onscreen)
+        self.p0_prev_puck_locs.append(p0_puck_loc)
+        self.p0_prev_puck_locs.append(p1_puck_loc)
         
         #print('passing action p0',actions[0])
         self.global_step+=1
