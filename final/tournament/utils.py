@@ -101,8 +101,8 @@ class VideoRecorder(BaseRecorder):
                  team1_instances=None, team2_instances=None):
         if team1_images and team2_images :
             self._writer.append_data(np.array(video_grid(team1_images, team2_images,
-                                                         'Blue: %d %s %s' % (soccer_state['score'][1], actions[0],actions[2]),
-                                                         'Red: %d %s %s' % (soccer_state['score'][0],actions[1],actions[2]))))
+                                                         'Blue: %d accel %s steer %s brake %s' % (soccer_state['score'][1], actions[1].get('acceleration').detach().numpy(),actions[1].get('steer').detach().numpy(),actions[0].get('brake')),
+                                                         'Red: %d accel %s steer %s brake %s' % (soccer_state['score'][0],actions[0].get('acceleration'),actions[0].get('steer').item(),actions[0].get('brake')))))
         else:
             self._writer.append_data(np.array(map_image(team1_state, team2_state, soccer_state)))
 
